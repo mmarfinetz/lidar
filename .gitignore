@@ -44,3 +44,4 @@ Ui-Improvements.md
 .env.local
 .env.*.local
 !.env.example
+.vercel

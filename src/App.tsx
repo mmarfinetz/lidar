@@ -99,7 +99,7 @@ function App() {
   }, []);
 
   return (
-    <div className="w-full h-screen flex flex-col bg-[#0a0e1a] text-gray-100">
+    <div className="w-full h-screen flex flex-col bg-[#0a0e1a] text-gray-100" style={{ height: '100vh', minHeight: '100vh' }}>
       {/* Header */}
       <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-sm border-b border-gray-800">
         <div className="px-6 py-4 flex items-center justify-between">
@@ -226,12 +226,14 @@ function App() {
           </div>
         ) : (
           /* Viewer Screen */
-          <div className="w-full h-full relative">
-            <Viewer3D 
-              data={pointCloudData} 
-              onReady={handleLayerManagerReady} 
-              showGrid={gridVisible}
-            />
+          <div className="w-full h-full relative bg-gray-900" style={{ minHeight: '500px' }}>
+            <div className="absolute inset-0">
+              <Viewer3D 
+                data={pointCloudData} 
+                onReady={handleLayerManagerReady} 
+                showGrid={gridVisible}
+              />
+            </div>
 
             {/* Control Panels */}
             <div className="absolute top-4 right-4 space-y-4 max-w-xs">

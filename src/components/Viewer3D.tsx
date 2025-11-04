@@ -104,8 +104,20 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     // Enable hardware acceleration features
     renderer.setAnimationLoop = renderer.setAnimationLoop;
     renderer.info.autoReset = false;
+    
+    // Make sure the canvas takes full size
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+    renderer.domElement.style.display = 'block';
+    
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
+    
+    console.log('Renderer initialized and canvas added to DOM:', {
+      canvasSize: { width: renderer.domElement.width, height: renderer.domElement.height },
+      containerSize: { width: container.clientWidth, height: container.clientHeight },
+      pixelRatio
+    });
 
     // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -156,13 +168,27 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     scene.add(axesHelper);
 
     // Add a test cube to ensure the scene is working (will be removed when data loads)
-    const testGeometry = new THREE.BoxGeometry(2, 2, 2);
-    const testMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+    const testGeometry = new THREE.BoxGeometry(4, 4, 4);
+    const testMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0x00ff00, 
+      wireframe: false,
+      transparent: true,
+      opacity: 0.7 
+    });
     const testCube = new THREE.Mesh(testGeometry, testMaterial);
-    testCube.position.set(0, 0, 1);
+    testCube.position.set(0, 0, 2);
     testCube.name = 'testCube';
     scene.add(testCube);
-    console.log('Added test cube to scene');
+    
+    // Add rotation animation to the test cube
+    const animateTestCube = () => {
+      if (testCube.parent) { // Only animate if still in scene
+        testCube.rotation.x += 0.01;
+        testCube.rotation.y += 0.01;
+      }
+    };
+    
+    console.log('Added animated test cube to scene');
 
     // Raycaster for coordinate detection
     const raycaster = new THREE.Raycaster();
@@ -278,6 +304,9 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       animationIdRef.current = requestAnimationFrame(animate);
       controls.update();
       
+      // Animate test cube
+      animateTestCube();
+      
       // Update LOD for optimized terrain meshes
       if (layerManagerRef.current) {
         layerManagerRef.current.updateLOD();
@@ -291,6 +320,10 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       }
     };
     animate();
+    
+    // Force an immediate render
+    renderer.render(scene, camera);
+    console.log('First render completed');
 
     // Enhanced window resize handler
     const handleResize = () => {
@@ -486,31 +519,34 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
   }, [data]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="absolute inset-0 w-full h-full">
       <div
         ref={containerRef}
-        className="w-full h-full"
-        style={{ cursor: 'grab', minHeight: '400px' }}
+        className="w-full h-full block"
+        style={{ 
+          cursor: 'grab',
+          minHeight: '400px',
+          width: '100%',
+          height: '100%',
+          position: 'relative'
+        }}
       />
       
-      {/* Debug Info */}
-      {data && (
-        <div className="absolute top-4 left-4 bg-black/80 text-white px-2 py-1 rounded text-xs">
-          Points: {data.count} | Bounds: {data.bounds.minX.toFixed(1)} to {data.bounds.maxX.toFixed(1)}
-        </div>
-      )}
-      
-      {/* Loading indicator */}
-      {!data && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50">
-          <div className="text-gray-400">Loading 3D viewer...</div>
-        </div>
-      )}
+      {/* Status indicator */}
+      <div className="absolute top-4 left-4 bg-black/90 text-white px-3 py-2 rounded text-sm z-10">
+        {!data ? (
+          <div className="text-yellow-400">🔄 Initializing 3D viewer...</div>
+        ) : (
+          <div className="text-green-400">
+            ✓ {data.count} points loaded | Bounds: {data.bounds.minX.toFixed(1)} to {data.bounds.maxX.toFixed(1)}
+          </div>
+        )}
+      </div>
       
       {/* Coordinate Tooltip */}
       {tooltip && (
         <div
-          className="absolute pointer-events-none z-10 bg-black/80 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm font-mono shadow-lg border border-gray-600"
+          className="absolute pointer-events-none z-20 bg-black/80 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm font-mono shadow-lg border border-gray-600"
           style={{
             left: tooltip.screenX + 10,
             top: tooltip.screenY - 10,

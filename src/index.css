@@ -4,6 +4,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ensure full height layout */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Fix any potential box-sizing issues */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Ensure WebGL canvas renders properly */
+canvas {
+  display: block;
+}
+
 :root {
   --background: 224 71% 4%;
   --foreground: 213 31% 91%;

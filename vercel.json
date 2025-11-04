@@ -4,6 +4,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "ignoreCommand": "echo 'Use Git settings'",
+  "rewrites": [
+    {
+      "source": "/api/opencontext",
+      "destination": "/api/opencontext"
+    }
+  ],
   "env": {
     "NODE_ENV": "production"
   }

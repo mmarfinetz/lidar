@@ -46,8 +46,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (compatible; lidar-scan/1.0)',
         'Cache-Control': 'no-cache'
-      },
-      timeout: 10000 // 10 second timeout
+      }
+      // Note: timeout not supported in standard fetch API, use AbortController if needed
     });
 
     console.log('Open Context response status:', upstream.status);

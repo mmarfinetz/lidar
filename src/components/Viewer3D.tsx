@@ -52,8 +52,17 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     if (!containerRef.current) return;
 
     const container = containerRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    let width = container.clientWidth;
+    let height = container.clientHeight;
+    
+    console.log('Initializing 3D viewer with dimensions:', { width, height });
+    
+    // If dimensions are not ready, use fallback dimensions and set up ResizeObserver
+    if (width === 0 || height === 0) {
+      console.warn('Container has zero dimensions, using fallback dimensions');
+      width = 800;
+      height = 600;
+    }
 
     // Scene
     const scene = new THREE.Scene();
@@ -145,6 +154,15 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     // Axes helper
     const axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
+
+    // Add a test cube to ensure the scene is working (will be removed when data loads)
+    const testGeometry = new THREE.BoxGeometry(2, 2, 2);
+    const testMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+    const testCube = new THREE.Mesh(testGeometry, testMaterial);
+    testCube.position.set(0, 0, 1);
+    testCube.name = 'testCube';
+    scene.add(testCube);
+    console.log('Added test cube to scene');
 
     // Raycaster for coordinate detection
     const raycaster = new THREE.Raycaster();
@@ -280,6 +298,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       const newWidth = containerRef.current.clientWidth;
       const newHeight = containerRef.current.clientHeight;
 
+      if (newWidth === 0 || newHeight === 0) return;
+
       camera.aspect = newWidth / newHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(newWidth, newHeight);
@@ -299,11 +319,31 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
 
     window.addEventListener('resize', handleResize);
 
+    // Use ResizeObserver for better container size detection
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width: newWidth, height: newHeight } = entry.contentRect;
+        console.log('ResizeObserver detected size change:', { newWidth, newHeight });
+        if (newWidth > 0 && newHeight > 0) {
+          camera.aspect = newWidth / newHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(newWidth, newHeight);
+          
+          if (composerRef.current) {
+            composerRef.current.setSize(newWidth, newHeight);
+          }
+        }
+      }
+    });
+
+    resizeObserver.observe(container);
+
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('mousemove', handleMouseMove);
       renderer.domElement.removeEventListener('mouseleave', handleMouseLeave);
+      resizeObserver.disconnect();
 
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
@@ -344,9 +384,16 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
 
   // Update visualization when data changes
   useEffect(() => {
-    if (!data || !layerManagerRef.current) return;
+    if (!data || !layerManagerRef.current || !sceneRef.current) return;
 
     console.log('Loading point cloud data:', data.count, 'points');
+
+    // Remove test cube if it exists
+    const testCube = sceneRef.current.getObjectByName('testCube');
+    if (testCube) {
+      sceneRef.current.remove(testCube);
+      console.log('Removed test cube');
+    }
 
     // Clear existing layers
     layerManagerRef.current.clearAll();
@@ -443,8 +490,22 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       <div
         ref={containerRef}
         className="w-full h-full"
-        style={{ cursor: 'grab' }}
+        style={{ cursor: 'grab', minHeight: '400px' }}
       />
+      
+      {/* Debug Info */}
+      {data && (
+        <div className="absolute top-4 left-4 bg-black/80 text-white px-2 py-1 rounded text-xs">
+          Points: {data.count} | Bounds: {data.bounds.minX.toFixed(1)} to {data.bounds.maxX.toFixed(1)}
+        </div>
+      )}
+      
+      {/* Loading indicator */}
+      {!data && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50">
+          <div className="text-gray-400">Loading 3D viewer...</div>
+        </div>
+      )}
       
       {/* Coordinate Tooltip */}
       {tooltip && (

@@ -22,7 +22,7 @@ uniform float contourStrength;   // 0..1
 // Advanced quality settings
 uniform float detailScale;       // micro-detail enhancement
 uniform float roughness;         // surface roughness for lighting
-uniform vec3 cameraPosition;
+// cameraPosition is a built-in Three.js uniform, no need to declare
 
 // Enhanced Blinn-Phong lighting model for better realism
 vec3 calculateBlinnPhong(vec3 normal, vec3 lightDir, vec3 viewDir, vec3 baseColor, float roughnessValue) {

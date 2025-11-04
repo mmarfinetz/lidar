@@ -50,6 +50,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
   // Initialize Three.js scene
   useEffect(() => {
     if (!containerRef.current) return;
+    
+    try {
 
     const container = containerRef.current;
     let width = container.clientWidth;
@@ -233,10 +235,17 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       1 / (width * currentPixelRatio), 
       1 / (height * currentPixelRatio)
     );
-    // Enhanced FXAA quality settings
-    fxaaPass.material.uniforms['fxaaQualitySubpix'].value = 0.75;
-    fxaaPass.material.uniforms['fxaaQualityEdgeThreshold'].value = 0.166;
-    fxaaPass.material.uniforms['fxaaQualityEdgeThresholdMin'].value = 0.0833;
+    // Enhanced FXAA quality settings - only set if uniforms exist
+    const uniforms = fxaaPass.material.uniforms;
+    if (uniforms['fxaaQualitySubpix']) {
+      uniforms['fxaaQualitySubpix'].value = 0.75;
+    }
+    if (uniforms['fxaaQualityEdgeThreshold']) {
+      uniforms['fxaaQualityEdgeThreshold'].value = 0.166;
+    }
+    if (uniforms['fxaaQualityEdgeThresholdMin']) {
+      uniforms['fxaaQualityEdgeThresholdMin'].value = 0.0833;
+    }
     composer.addPass(fxaaPass);
 
     // Final output pass for proper tone mapping
@@ -406,6 +415,31 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
         container.removeChild(renderer.domElement);
       }
     };
+    
+    } catch (error) {
+      console.error('Error initializing 3D viewer:', error);
+      // Create a fallback scene if initialization fails
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      containerRef.current?.appendChild(renderer.domElement);
+      
+      // Add a simple error message
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      const cube = new THREE.Mesh(geometry, material);
+      scene.add(cube);
+      camera.position.z = 5;
+      
+      const errorAnimate = () => {
+        requestAnimationFrame(errorAnimate);
+        cube.rotation.x += 0.01;
+        cube.rotation.y += 0.01;
+        renderer.render(scene, camera);
+      };
+      errorAnimate();
+    }
   }, [onReady]);
 
   // Handle grid visibility changes
@@ -519,18 +553,15 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
   }, [data]);
 
   return (
-    <div className="absolute inset-0 w-full h-full">
-      <div
-        ref={containerRef}
-        className="w-full h-full block"
-        style={{ 
-          cursor: 'grab',
-          minHeight: '400px',
-          width: '100%',
-          height: '100%',
-          position: 'relative'
-        }}
-      />
+    <div
+      ref={containerRef}
+      className="absolute inset-0 w-full h-full"
+      style={{
+        cursor: 'grab',
+        minWidth: '100%',
+        minHeight: '100%'
+      }}
+    >
       
       {/* Status indicator */}
       <div className="absolute top-4 left-4 bg-black/90 text-white px-3 py-2 rounded text-sm z-10">

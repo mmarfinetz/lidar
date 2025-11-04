@@ -226,14 +226,12 @@ function App() {
           </div>
         ) : (
           /* Viewer Screen */
-          <div className="w-full h-full relative bg-gray-900" style={{ minHeight: '500px' }}>
-            <div className="absolute inset-0">
-              <Viewer3D 
-                data={pointCloudData} 
-                onReady={handleLayerManagerReady} 
-                showGrid={gridVisible}
-              />
-            </div>
+          <div className="w-full h-full relative bg-gray-900">
+            <Viewer3D
+              data={pointCloudData}
+              onReady={handleLayerManagerReady}
+              showGrid={gridVisible}
+            />
 
             {/* Control Panels */}
             <div className="absolute top-4 right-4 space-y-4 max-w-xs">

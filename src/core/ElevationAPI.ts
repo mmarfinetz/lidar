@@ -90,7 +90,7 @@ export class ElevationAPI {
    */
   static async fetchElevationData(
     bbox: BoundingBox,
-    dataset: string = 'SRTMGL3',
+    dataset: string = 'SRTMGL1', // Default to 30m resolution for higher quality
     onProgress?: (progress: number, status: string) => void
   ): Promise<PointCloudData> {
     const apiKey = this.getApiKey();
@@ -382,7 +382,7 @@ export class ElevationAPI {
    * Search for high-resolution LiDAR collections in a bounding box
    * This searches OpenTopography's specialized datasets
    */
-  static async searchLidarCollections(bbox: BoundingBox): Promise<Array<{
+  static async searchLidarCollections(_bbox: BoundingBox): Promise<Array<{
     id: string;
     title: string;
     description: string;
@@ -391,41 +391,17 @@ export class ElevationAPI {
     dataType: 'raster' | 'pointcloud';
   }>> {
     try {
-      // Known high-quality archaeological collections
-      const knownCollections = [
-        {
-          id: 'OTSDEM.032016.32616.1',
-          title: 'Mayapán Maya Archaeological Site (Mexico)',
-          description: 'High-density LiDAR (0.5m) revealing Maya ruins beneath forest canopy',
-          resolution: '0.5m',
-          bbox: { south: 20.620, north: 20.650, west: -89.470, east: -89.440 },
-          downloadUrl: 'https://cloud.sdsc.edu/v1/AUTH_opentopography/Raster/OTSDEM.032016.32616.1/OTSDEM.032016.32616.1_BE.tif',
-          dataType: 'raster' as const
-        },
-        {
-          id: 'OTSDEM.042022.32615.1',
-          title: 'Middle Usumacinta Maya Region (Mexico)',
-          description: 'Archaeological LiDAR survey revealing settlement patterns',
-          resolution: '1m',
-          bbox: { south: 16.800, north: 17.200, west: -91.200, east: -90.800 },
-          downloadUrl: 'https://portal.opentopography.org/raster?opentopoID=OTSDEM.042022.32615.1',
-          dataType: 'raster' as const
-        },
-        // Add more as they become available...
-      ];
+      // TODO: Implement real OpenTopography API collection search
+      // This should query the actual OpenTopography collections API
+      const apiKey = this.getApiKey();
+      if (!apiKey) {
+        console.warn('API key required for LiDAR collections search');
+        return [];
+      }
 
-      // Filter collections that intersect with the requested bounding box
-      const intersecting = knownCollections.filter(collection => {
-        const c = collection.bbox;
-        return !(
-          bbox.east < c.west ||
-          bbox.west > c.east ||
-          bbox.north < c.south ||
-          bbox.south > c.north
-        );
-      });
-
-      return intersecting.map(({ bbox: _, ...rest }) => rest);
+      // For now, return empty array until real API integration
+      console.warn('LiDAR collections search not yet implemented - would query OpenTopography collections API');
+      return [];
     } catch (error) {
       console.warn('Error searching LiDAR collections:', error);
       return [];

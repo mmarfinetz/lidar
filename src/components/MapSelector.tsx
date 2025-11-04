@@ -106,7 +106,7 @@ const DrawRectangle: React.FC<{
 
 export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loading }) => {
   const [selectedBounds, setSelectedBounds] = useState<LatLngBounds | null>(null);
-  const [selectedDataset] = useState('SRTMGL3');
+  const [selectedDataset] = useState('SRTMGL1'); // Use 30m resolution instead of 90m for higher quality
   const [validationError, setValidationError] = useState<string | null>(null);
   const [estimatedPoints, setEstimatedPoints] = useState<number>(0);
   const [drawingEnabled, setDrawingEnabled] = useState(false);
@@ -157,19 +157,9 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
           canRevealArchaeology: availability.canRevealArchaeology
         });
 
-        // Always trigger quick preview with a supported global DEM dataset.
-        // High‑res sources (USGS/OpenTopography collections) are handled via the
-        // High‑Resolution guide and should not be sent to the Global DEM API.
-        const bestDatasetId = selectedDataset;
-
-        if (!apiKeyPresent && availability.bestSource.id !== 'global_dem') {
-          const msg = 'High-resolution data available! Add VITE_OPENTOPO_API_KEY to access it.';
-          setValidationError(msg);
-        } else {
-          // Auto-start scan using global DEM preview
-          console.log('🟣 Auto-scanning with best available data source...');
-          onRegionSelect(bbox, bestDatasetId);
-        }
+        // Auto-scan with best available data source
+        console.log('🟣 Auto-scanning with best available data source...');
+        onRegionSelect(bbox, selectedDataset);
       } catch (error) {
         console.warn('Failed to check data availability:', error);
         // Fallback to basic estimation
@@ -193,12 +183,6 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
 
   const handleScan = useCallback(() => {
     if (!selectedBounds) return;
-    if (!apiKeyPresent) {
-      const msg = 'OpenTopography API key is missing. Add VITE_OPENTOPO_API_KEY to .env and restart.';
-      console.warn(msg);
-      setValidationError(msg);
-      return;
-    }
 
     const bbox: BoundingBox = {
       south: selectedBounds.getSouth(),
@@ -214,7 +198,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
     }
 
     onRegionSelect(bbox, selectedDataset);
-  }, [selectedBounds, selectedDataset, onRegionSelect, apiKeyPresent]);
+  }, [selectedBounds, selectedDataset, onRegionSelect]);
 
   const handleClear = useCallback(() => {
     setSelectedBounds(null);
@@ -300,12 +284,6 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
         </div>
       </div>
 
-      {/* API Key Warning (placed below toolbar to avoid overlap) */}
-      {(!apiKeyPresent) && (
-        <div className="px-6 py-3 bg-amber-600/90 text-white text-center text-sm border-y border-amber-500">
-          ⚠️ OpenTopography API key missing. Add VITE_OPENTOPO_API_KEY to your .env and restart for full functionality.
-        </div>
-      )}
 
       {/* Map */}
       <div className="flex-1 relative min-h-0">

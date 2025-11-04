@@ -66,7 +66,9 @@ export const ArchaeologicalSitePanel: React.FC<ArchaeologicalSitePanelProps> = (
                 <h4 className="font-medium text-gray-200 mb-1 flex items-center gap-2">
                   {site.name}
                   {site.hasLidarData && (
-                    <Zap className="w-4 h-4 text-green-400" title="LiDAR data available" />
+                    <span title="LiDAR data available">
+                      <Zap className="w-4 h-4 text-green-400" />
+                    </span>
                   )}
                 </h4>
                 

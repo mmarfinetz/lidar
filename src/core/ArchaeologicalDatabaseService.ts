@@ -182,16 +182,13 @@ export class ArchaeologicalDatabaseService {
     try {
       // ARIADNE Portal spatial search (if available)
       // Note: This may require different endpoint or authentication
-      const polygon = `POLYGON((${bbox.west} ${bbox.south}, ${bbox.east} ${bbox.south}, ${bbox.east} ${bbox.north}, ${bbox.west} ${bbox.north}, ${bbox.west} ${bbox.south}))`;
+      // const polygon = `POLYGON((${bbox.west} ${bbox.south}, ${bbox.east} ${bbox.south}, ${bbox.east} ${bbox.north}, ${bbox.west} ${bbox.north}, ${bbox.west} ${bbox.south}))`;
       
       // Placeholder for ARIADNE API - actual endpoint may vary
-      const searchData = {
-        spatial: polygon,
-        limit: 100
-      };
+      // When API is confirmed, implement search with spatial polygon query
 
       // For now, return empty array until we can confirm the API endpoint
-      console.log('ARIADNE Portal integration pending API confirmation');
+      console.log('ARIADNE Portal integration pending API confirmation for bbox:', bbox);
       return [];
     } catch (error) {
       console.warn('ARIADNE query failed:', error);
@@ -452,7 +449,7 @@ export class ArchaeologicalDatabaseService {
    */
   static getCacheStats(): { entries: number; totalSize: number } {
     let totalSize = 0;
-    for (const [key, value] of this.cache) {
+    for (const [, value] of this.cache) {
       totalSize += JSON.stringify(value).length;
     }
     

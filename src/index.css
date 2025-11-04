@@ -1,0 +1,55 @@
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 224 71% 4%;
+  --foreground: 213 31% 91%;
+  --border: 216 34% 17%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* Leaflet map styling */
+.leaflet-container {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.leaflet-control-attribution {
+  background-color: rgba(17, 24, 39, 0.8) !important;
+  color: #9ca3af !important;
+}
+
+.leaflet-control-attribution a {
+  color: #60a5fa !important;
+}
+
+/* Give Leaflet controls breathing room inside our layout */
+.leaflet-control-container .leaflet-top {
+  margin-top: 0.5rem;
+}
+.leaflet-control-container .leaflet-bottom {
+  margin-bottom: 0.5rem;
+}

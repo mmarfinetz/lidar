@@ -13,7 +13,7 @@
     "test:ui": "vitest --ui"
   },
   "engines": {
-    "node": ">=20.19 <21 || >=22.12"
+    "node": ">=18"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",

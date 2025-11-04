@@ -116,6 +116,32 @@ function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {!pointCloudData && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setInputMode('map')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
+                    inputMode === 'map'
+                      ? 'bg-blue-600/20 border border-blue-500/50 text-blue-300'
+                      : 'bg-gray-800/50 border border-gray-600 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500'
+                  }`}
+                >
+                  🗺️ Select from Map
+                </button>
+                
+                <button
+                  onClick={() => setInputMode('upload')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
+                    inputMode === 'upload'
+                      ? 'bg-purple-600/20 border border-purple-500/50 text-purple-300'
+                      : 'bg-gray-800/50 border border-gray-600 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500'
+                  }`}
+                >
+                  📁 Upload Files
+                </button>
+              </div>
+            )}
+            
             {pointCloudData && (
               <button
                 onClick={handleReset}
@@ -142,125 +168,61 @@ function App() {
       <div className="w-full flex-1 min-h-0">
         {!pointCloudData ? (
           /* Input Selection Screen */
-          <div className="w-full h-full flex min-h-0">
+          <div className="w-full h-full relative">
+            {/* Full Width Map */}
+            {inputMode === 'map' && (
+              <MapSelector onRegionSelect={handleRegionSelect} loading={loading} />
+            )}
             
-            {/* Sidebar */}
-            <div className="w-56 bg-gray-900/95 backdrop-blur-sm border-r border-gray-700 flex flex-col">
-              
-              {/* Mode Selection Header */}
-              <div className="p-4 border-b border-gray-700">
-                <h2 className="text-base font-semibold text-gray-200 mb-3">Choose Data Source</h2>
-                
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setInputMode('map')}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${
-                      inputMode === 'map'
-                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                        : 'bg-gray-800/50 border-gray-600 text-gray-300 hover:bg-gray-800/70 hover:border-gray-500'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="text-xl">🗺️</div>
-                      <div>
-                        <div className="font-medium">Select from Map</div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          Browse and select regions using OpenTopography datasets
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => setInputMode('upload')}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${
-                      inputMode === 'upload'
-                        ? 'bg-purple-600/20 border-purple-500/50 text-purple-300'
-                        : 'bg-gray-800/50 border-gray-600 text-gray-300 hover:bg-gray-800/70 hover:border-gray-500'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="text-xl">📁</div>
-                      <div>
-                        <div className="font-medium">Upload Files</div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          Upload LAS, LAZ, XYZ, or processed DTM files
-                        </div>
-                      </div>
-                    </div>
-                  </button>
+            {/* Upload Modal Overlay */}
+            {inputMode === 'upload' && (
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="bg-gray-900/95 backdrop-blur-sm rounded-xl p-6 border border-gray-700 shadow-2xl max-w-2xl w-full mx-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-200">Upload Files</h2>
+                    <button
+                      onClick={() => setInputMode('map')}
+                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-gray-200"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <DtmUploadPanel onLoaded={setPointCloudData} />
                 </div>
               </div>
-
-              {/* Content Area */}
-              <div className="flex-1 overflow-hidden">
-                {inputMode === 'upload' && (
-                  <div className="p-4">
-                    <DtmUploadPanel onLoaded={setPointCloudData} />
+            )}
+            
+            {/* Status Overlays */}
+            {loading && (
+              <div className="absolute bottom-4 left-4 right-4 z-40">
+                <div className="bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 border border-gray-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-300">Processing data...</span>
+                    <span className="text-sm text-gray-400">{Math.round(loadProgress)}%</span>
                   </div>
-                )}
+                  <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${loadProgress}%` }}
+                    />
+                  </div>
+                </div>
               </div>
+            )}
 
-              {/* Status Footer */}
-              <div className="border-t border-gray-700">
-                {/* Loading State */}
-                {loading && (
-                  <div className="p-4 bg-gray-900/50">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-300">Processing data...</span>
-                      <span className="text-sm text-gray-400">{Math.round(loadProgress)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${loadProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Error Display */}
-                {error && (
-                  <div className="p-4 bg-red-900/20 border-t border-red-800/50">
-                    <div className="text-sm text-red-400 font-medium mb-1">Error</div>
-                    <div className="text-xs text-red-300">{error}</div>
-                  </div>
-                )}
-
-                {/* Info Footer */}
-                {!loading && !error && (
-                  <div className="p-4 bg-gray-900/30">
-                    <div className="text-xs text-gray-500">
-                      {inputMode === 'map' 
-                        ? "🎯 Find and analyze terrain data from global datasets"
-                        : "📊 Supported: .las, .laz, .xyz, .txt, .asc files"
-                      }
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Main Content Area */}
-            <div className="flex-1 relative min-h-0">
-              {inputMode === 'map' ? (
-                <MapSelector onRegionSelect={handleRegionSelect} loading={loading} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
-                  <div className="text-center">
-                    <div className="text-8xl mb-6 opacity-50">📁</div>
-                    <h3 className="text-2xl font-semibold text-gray-300 mb-3">Upload Your Data Files</h3>
-                    <p className="text-gray-400 max-w-md mx-auto mb-8 leading-relaxed">
-                      Drag and drop your LiDAR point cloud files or processed elevation data. 
-                      Supported formats include LAS, LAZ, XYZ, and ASCII Grid.
-                    </p>
-                    <div className="bg-gray-800/50 rounded-lg p-8 border-2 border-dashed border-gray-600 max-w-md mx-auto">
-                      <DtmUploadPanel onLoaded={setPointCloudData} />
+            {error && (
+              <div className="absolute bottom-4 left-4 right-4 z-40">
+                <div className="bg-red-900/95 backdrop-blur-sm rounded-lg p-4 border border-red-700">
+                  <div className="flex items-start gap-3">
+                    <div className="text-red-400 mt-0.5">⚠️</div>
+                    <div>
+                      <p className="text-sm font-medium text-red-300">Error loading data</p>
+                      <p className="text-xs text-red-400 mt-1">{error}</p>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Viewer Screen */

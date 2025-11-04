@@ -12,6 +12,9 @@
     "test:run": "vitest run",
     "test:ui": "vitest --ui"
   },
+  "engines": {
+    "node": ">=20.19 <21 || >=22.12"
+  },
   "dependencies": {
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.4.0",

@@ -152,8 +152,9 @@ export class ArchaeologicalDatabaseService {
    */
   private static async queryOpenContext(bbox: BoundingBox): Promise<ArchaeologicalSite[]> {
     try {
-      // Open Context API endpoint for spatial search
-      const baseUrl = 'https://opencontext.org/subjects-search/';
+      // Use our API proxy to avoid browser CORS issues in production.
+      // In dev, Vite proxies `/api/opencontext` to Open Context directly.
+      const baseUrl = '/api/opencontext';
       const params = new URLSearchParams({
         bbox: `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`,
         type: 'subjects',
@@ -167,7 +168,15 @@ export class ArchaeologicalDatabaseService {
         throw new Error(`Open Context API error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const text = await response.text();
+      
+      // Check if response is actually JSON
+      if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
+        console.warn('Open Context returned HTML instead of JSON, possibly an error page');
+        return [];
+      }
+
+      const data = JSON.parse(text);
       return this.parseOpenContextResponse(data);
     } catch (error) {
       console.warn('Open Context query failed:', error);

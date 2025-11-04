@@ -23,7 +23,7 @@ console.log = (...args: any[]) => {
 }
 
 // Provide a minimal import.meta.env shim for code paths that reference it
-// (Most tests don’t call fetch, so this is sufficient)
+// (Most tests don't call fetch, so this is sufficient)
 // @ts-ignore
-globalThis.importMetaEnv = { VITE_OPENTOPO_API_KEY: 'test-key' }
+globalThis.importMetaEnv = {}
 

@@ -37,6 +37,20 @@ A production-ready web application for **scanning and visualizing real LiDAR ele
 
 ## Quick Start
 
+### Prerequisites
+
+**OpenTopography API Key Required**: This app needs a free API key from OpenTopography to fetch real elevation data.
+
+1. **Get your free API key**:
+   - Register at [portal.opentopography.org/newUser](https://portal.opentopography.org/newUser)
+   - Copy your API key from [your account page](https://portal.opentopography.org/myAccount)
+
+2. **Set up environment variables**:
+   ```bash
+   # Create .env file in project root
+   echo "VITE_OPENTOPO_API_KEY=your_api_key_here" > .env
+   ```
+
 ### Installation
 
 ```bash
@@ -48,6 +62,8 @@ npm run dev
 ```
 
 The application will be available at `http://localhost:5173/`
+
+> **Need help with API setup?** See [API_SETUP_GUIDE.md](./API_SETUP_GUIDE.md) for detailed instructions.
 
 ### Building for Production
 

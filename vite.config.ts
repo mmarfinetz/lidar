@@ -7,5 +7,15 @@ export default defineConfig({
   assetsInclude: ['**/*.glsl'],
   optimizeDeps: {
     exclude: ['laz-perf']
-  }
+  },
+  server: {
+    proxy: {
+      // Dev-time proxy to avoid CORS when hitting Open Context directly
+      '/api/opencontext': {
+        target: 'https://opencontext.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/opencontext/, '/subjects-search'),
+      },
+    },
+  },
 })

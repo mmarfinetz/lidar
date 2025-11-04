@@ -145,23 +145,23 @@ function App() {
           <div className="w-full h-full flex min-h-0">
             
             {/* Sidebar */}
-            <div className="w-80 bg-gray-900/95 backdrop-blur-sm border-r border-gray-700 flex flex-col">
+            <div className="w-56 bg-gray-900/95 backdrop-blur-sm border-r border-gray-700 flex flex-col">
               
               {/* Mode Selection Header */}
-              <div className="p-6 border-b border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-200 mb-4">Choose Data Source</h2>
+              <div className="p-4 border-b border-gray-700">
+                <h2 className="text-base font-semibold text-gray-200 mb-3">Choose Data Source</h2>
                 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <button
                     onClick={() => setInputMode('map')}
-                    className={`w-full text-left p-4 rounded-lg border transition-all ${
+                    className={`w-full text-left p-3 rounded-lg border transition-all ${
                       inputMode === 'map'
                         ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
                         : 'bg-gray-800/50 border-gray-600 text-gray-300 hover:bg-gray-800/70 hover:border-gray-500'
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="text-2xl">🗺️</div>
+                    <div className="flex items-start gap-2">
+                      <div className="text-xl">🗺️</div>
                       <div>
                         <div className="font-medium">Select from Map</div>
                         <div className="text-xs text-gray-400 mt-1">
@@ -173,14 +173,14 @@ function App() {
                   
                   <button
                     onClick={() => setInputMode('upload')}
-                    className={`w-full text-left p-4 rounded-lg border transition-all ${
+                    className={`w-full text-left p-3 rounded-lg border transition-all ${
                       inputMode === 'upload'
                         ? 'bg-purple-600/20 border-purple-500/50 text-purple-300'
                         : 'bg-gray-800/50 border-gray-600 text-gray-300 hover:bg-gray-800/70 hover:border-gray-500'
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="text-2xl">📁</div>
+                    <div className="flex items-start gap-2">
+                      <div className="text-xl">📁</div>
                       <div>
                         <div className="font-medium">Upload Files</div>
                         <div className="text-xs text-gray-400 mt-1">
@@ -195,7 +195,7 @@ function App() {
               {/* Content Area */}
               <div className="flex-1 overflow-hidden">
                 {inputMode === 'upload' && (
-                  <div className="p-6">
+                  <div className="p-4">
                     <DtmUploadPanel onLoaded={setPointCloudData} />
                   </div>
                 )}

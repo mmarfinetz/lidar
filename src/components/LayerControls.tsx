@@ -1,15 +1,17 @@
 import React from 'react';
-import { Eye, EyeOff, Layers } from 'lucide-react';
+import { Eye, EyeOff, Layers, Grid3X3 } from 'lucide-react';
 
 interface LayerControlsProps {
   surfaceVisible: boolean;
   terrainVisible: boolean;
   surfaceOpacity: number;
   terrainOpacity: number;
+  gridVisible: boolean;
   onSurfaceVisibilityChange: (visible: boolean) => void;
   onTerrainVisibilityChange: (visible: boolean) => void;
   onSurfaceOpacityChange: (opacity: number) => void;
   onTerrainOpacityChange: (opacity: number) => void;
+  onGridVisibilityChange: (visible: boolean) => void;
 }
 
 export const LayerControls: React.FC<LayerControlsProps> = ({
@@ -17,10 +19,12 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
   terrainVisible,
   surfaceOpacity,
   terrainOpacity,
+  gridVisible,
   onSurfaceVisibilityChange,
   onTerrainVisibilityChange,
   onSurfaceOpacityChange,
   onTerrainOpacityChange,
+  onGridVisibilityChange,
 }) => {
   return (
     <div className="bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 border border-gray-700 shadow-xl">
@@ -66,7 +70,7 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
       </div>
 
       {/* Terrain Layer */}
-      <div>
+      <div className="mb-4 pb-4 border-b border-gray-700">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-300">Terrain Layer</span>
           <button
@@ -99,6 +103,24 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Grid Control */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-gray-300">Grid</span>
+          <button
+            onClick={() => onGridVisibilityChange(!gridVisible)}
+            className="p-1 rounded hover:bg-gray-700 transition-colors"
+            title={gridVisible ? 'Hide grid' : 'Show grid'}
+          >
+            {gridVisible ? (
+              <Grid3X3 className="w-4 h-4 text-yellow-400" />
+            ) : (
+              <Grid3X3 className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
+        </div>
       </div>
 
       <style>{`

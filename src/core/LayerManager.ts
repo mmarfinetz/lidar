@@ -200,6 +200,7 @@ export class LayerManager {
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = 'terrain_surface';
+      mesh.userData.isTerrainMesh = true;
 
       // Remove old terrain layer if exists
       this.removeLayer('terrain');

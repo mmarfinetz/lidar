@@ -22,6 +22,7 @@ function App() {
   const [terrainVisible, setTerrainVisible] = useState(true);
   const [surfaceOpacity, setSurfaceOpacity] = useState(1.0);
   const [terrainOpacity, setTerrainOpacity] = useState(1.0);
+  const [gridVisible, setGridVisible] = useState(true);
   const [currentGradient, setCurrentGradient] = useState('elevation');
 
   const layerManagerRef = useRef<LayerManager | null>(null);
@@ -71,6 +72,10 @@ function App() {
     layerManagerRef.current?.setLayerOpacity('terrain', opacity);
   }, []);
 
+  const handleGridVisibilityChange = useCallback((visible: boolean) => {
+    setGridVisible(visible);
+  }, []);
+
   const handleGradientChange = useCallback((gradient: ColorGradient) => {
     const gradientKey = Object.keys(COLOR_GRADIENTS).find(
       key => COLOR_GRADIENTS[key].name === gradient.name
@@ -89,6 +94,7 @@ function App() {
     setTerrainVisible(true);
     setSurfaceOpacity(1.0);
     setTerrainOpacity(1.0);
+    setGridVisible(true);
     setCurrentGradient('elevation');
   }, []);
 
@@ -259,7 +265,11 @@ function App() {
         ) : (
           /* Viewer Screen */
           <div className="w-full h-full relative">
-            <Viewer3D data={pointCloudData} onReady={handleLayerManagerReady} />
+            <Viewer3D 
+              data={pointCloudData} 
+              onReady={handleLayerManagerReady} 
+              showGrid={gridVisible}
+            />
 
             {/* Control Panels */}
             <div className="absolute top-4 right-4 space-y-4 max-w-xs">
@@ -269,10 +279,12 @@ function App() {
                 terrainVisible={terrainVisible}
                 surfaceOpacity={surfaceOpacity}
                 terrainOpacity={terrainOpacity}
+                gridVisible={gridVisible}
                 onSurfaceVisibilityChange={handleSurfaceVisibilityChange}
                 onTerrainVisibilityChange={handleTerrainVisibilityChange}
                 onSurfaceOpacityChange={handleSurfaceOpacityChange}
                 onTerrainOpacityChange={handleTerrainOpacityChange}
+                onGridVisibilityChange={handleGridVisibilityChange}
               />
               <ColorGradientSelector
                 currentGradient={currentGradient}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -13,9 +13,22 @@ import { buildGoogleStaticMapUrl } from '../core/Basemap';
 interface Viewer3DProps {
   data: PointCloudData | null;
   onReady?: (manager: LayerManager) => void;
+  showGrid?: boolean;
 }
 
-export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady }) => {
+interface TooltipData {
+  x: number;
+  y: number;
+  coordinate: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  screenX: number;
+  screenY: number;
+}
+
+export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = true }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -27,6 +40,10 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady }) => {
   const basemapTextureRef = useRef<THREE.Texture | null>(null);
   const composerRef = useRef<EffectComposer | null>(null);
   const fxaaPassRef = useRef<ShaderPass | null>(null);
+  const gridHelperRef = useRef<THREE.GridHelper | null>(null);
+  const raycasterRef = useRef<THREE.Raycaster | null>(null);
+  
+  const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -87,11 +104,17 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady }) => {
     const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
     // Place grid on XY plane for Z-up world
     gridHelper.rotation.x = Math.PI / 2;
+    gridHelper.visible = showGrid;
     scene.add(gridHelper);
+    gridHelperRef.current = gridHelper;
 
     // Axes helper
     const axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
+
+    // Raycaster for coordinate detection
+    const raycaster = new THREE.Raycaster();
+    raycasterRef.current = raycaster;
 
     // Layer Manager
     const layerManager = new LayerManager(scene);
@@ -118,6 +141,59 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady }) => {
 
     composerRef.current = composer;
     fxaaPassRef.current = fxaaPass;
+
+    // Mouse move handler for coordinate tooltip
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!raycaster || !camera || !scene || !data) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Get all terrain meshes for raycasting
+      const terrainMeshes: THREE.Object3D[] = [];
+      scene.traverse((child) => {
+        if (child.userData.isTerrainMesh) {
+          terrainMeshes.push(child);
+        }
+      });
+
+      if (terrainMeshes.length > 0) {
+        const intersects = raycaster.intersectObjects(terrainMeshes, true);
+        if (intersects.length > 0) {
+          const intersect = intersects[0];
+          const point = intersect.point;
+          
+          setTooltip({
+            x: point.x,
+            y: point.y,
+            coordinate: {
+              x: point.x,
+              y: point.y,
+              z: point.z,
+            },
+            screenX: event.clientX,
+            screenY: event.clientY,
+          });
+        } else {
+          setTooltip(null);
+        }
+      } else {
+        setTooltip(null);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      setTooltip(null);
+    };
+
+    // Add mouse event listeners
+    renderer.domElement.addEventListener('mousemove', handleMouseMove);
+    renderer.domElement.addEventListener('mouseleave', handleMouseLeave);
 
     // Animation loop
     const animate = () => {
@@ -151,6 +227,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady }) => {
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      renderer.domElement.removeEventListener('mousemove', handleMouseMove);
+      renderer.domElement.removeEventListener('mouseleave', handleMouseLeave);
 
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
@@ -181,6 +259,13 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady }) => {
       }
     };
   }, [onReady]);
+
+  // Handle grid visibility changes
+  useEffect(() => {
+    if (gridHelperRef.current) {
+      gridHelperRef.current.visible = showGrid;
+    }
+  }, [showGrid]);
 
   // Update visualization when data changes
   useEffect(() => {
@@ -274,10 +359,30 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady }) => {
   }, [data]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ cursor: 'grab' }}
-    />
+    <div className="relative w-full h-full">
+      <div
+        ref={containerRef}
+        className="w-full h-full"
+        style={{ cursor: 'grab' }}
+      />
+      
+      {/* Coordinate Tooltip */}
+      {tooltip && (
+        <div
+          className="absolute pointer-events-none z-10 bg-black/80 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-sm font-mono shadow-lg border border-gray-600"
+          style={{
+            left: tooltip.screenX + 10,
+            top: tooltip.screenY - 10,
+            transform: 'translateY(-100%)',
+          }}
+        >
+          <div className="flex flex-col space-y-1">
+            <div>X: {tooltip.coordinate.x.toFixed(2)}</div>
+            <div>Y: {tooltip.coordinate.y.toFixed(2)}</div>
+            <div>Z: {tooltip.coordinate.z.toFixed(2)}</div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };

@@ -6,6 +6,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { SAOPass } from 'three/examples/jsm/postprocessing/SAOPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { LayerManager } from '../core/LayerManager';
 import type { PointCloudData } from '../types/lidar';
 import { buildGoogleStaticMapUrl } from '../core/Basemap';
@@ -66,18 +68,33 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     camera.position.set(15, 15, 15);
     cameraRef.current = camera;
 
-    // Renderer
+    // Renderer with enhanced quality settings
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
       logarithmicDepthBuffer: true,
+      powerPreference: "high-performance",
+      precision: "highp",
+      preserveDrawingBuffer: false, // Better performance
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    // Color management & tonemapping for richer visuals
+    // Enhanced pixel ratio for crisp visuals on high-DPI displays
+    const pixelRatio = Math.min(window.devicePixelRatio, 2); // Cap at 2 for performance
+    renderer.setPixelRatio(pixelRatio);
+    
+    // Enhanced color management & tonemapping
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.2; // Slightly brighter for better detail
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    
+    // Advanced rendering features
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+    renderer.shadowMap.autoUpdate = true;
+    
+    // Enable hardware acceleration features
+    renderer.setAnimationLoop = renderer.setAnimationLoop;
+    renderer.info.autoReset = false;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -92,13 +109,30 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     controls.maxPolarAngle = Math.PI;
     controlsRef.current = controls;
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Enhanced lighting setup for better visual quality
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true;
+    // Enhanced shadow quality
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.camera.near = 0.1;
+    directionalLight.shadow.camera.far = 100;
+    directionalLight.shadow.camera.left = -50;
+    directionalLight.shadow.camera.right = 50;
+    directionalLight.shadow.camera.top = 50;
+    directionalLight.shadow.camera.bottom = -50;
+    directionalLight.shadow.bias = -0.001;
+    directionalLight.shadow.radius = 4;
     scene.add(directionalLight);
+
+    // Add rim lighting for better depth perception
+    const rimLight = new THREE.DirectionalLight(0x87ceeb, 0.3); // Sky blue rim light
+    rimLight.position.set(-10, -10, 15);
+    scene.add(rimLight);
 
     // Grid helper
     const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
@@ -116,28 +150,54 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     const raycaster = new THREE.Raycaster();
     raycasterRef.current = raycaster;
 
-    // Layer Manager
+    // Layer Manager with camera reference for LOD
     const layerManager = new LayerManager(scene);
+    layerManager.setCamera(camera);
     layerManagerRef.current = layerManager;
     onReady?.(layerManager);
 
-    // Post-processing setup (RenderPass + SAO + FXAA)
+    // Enhanced post-processing pipeline for superior visual quality
     const composer = new EffectComposer(renderer);
+    
+    // Base render pass
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
-    // SAO (Screen-space Ambient Occlusion) to enhance micro‑relief
+    // Enhanced SAO (Screen-space Ambient Occlusion) for micro-relief detail
     const saoPass = new SAOPass(scene, camera);
-    saoPass.params.saoIntensity = 0.02;
-    saoPass.params.saoScale = 100;
-    saoPass.params.saoKernelRadius = 16;
+    saoPass.params.saoIntensity = 0.025; // Slightly more intense
+    saoPass.params.saoScale = 120;       // Better scale for terrain
+    saoPass.params.saoKernelRadius = 20; // Larger kernel for smoother AO
+    saoPass.params.saoMinResolution = 0.0;
+    saoPass.params.saoBlur = true;
+    saoPass.params.saoBlurRadius = 8;
+    saoPass.params.saoBlurStdDev = 4;
+    saoPass.params.saoBlurDepthCutoff = 0.01;
     composer.addPass(saoPass);
 
-    // FXAA for cleaner edges
+    // Subtle bloom for enhanced lighting
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.15, 0.4, 0.85);
+    bloomPass.threshold = 0.8;   // Only bright areas bloom
+    bloomPass.strength = 0.15;   // Subtle effect
+    bloomPass.radius = 0.4;      // Medium blur radius
+    composer.addPass(bloomPass);
+
+    // Enhanced FXAA for crystal-clear edges
     const fxaaPass = new ShaderPass(FXAAShader);
-    const pixelRatio = renderer.getPixelRatio();
-    fxaaPass.material.uniforms['resolution'].value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
+    const currentPixelRatio = renderer.getPixelRatio();
+    fxaaPass.material.uniforms['resolution'].value.set(
+      1 / (width * currentPixelRatio), 
+      1 / (height * currentPixelRatio)
+    );
+    // Enhanced FXAA quality settings
+    fxaaPass.material.uniforms['fxaaQualitySubpix'].value = 0.75;
+    fxaaPass.material.uniforms['fxaaQualityEdgeThreshold'].value = 0.166;
+    fxaaPass.material.uniforms['fxaaQualityEdgeThresholdMin'].value = 0.0833;
     composer.addPass(fxaaPass);
+
+    // Final output pass for proper tone mapping
+    const outputPass = new OutputPass();
+    composer.addPass(outputPass);
 
     composerRef.current = composer;
     fxaaPassRef.current = fxaaPass;
@@ -195,10 +255,17 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     renderer.domElement.addEventListener('mousemove', handleMouseMove);
     renderer.domElement.addEventListener('mouseleave', handleMouseLeave);
 
-    // Animation loop
+    // Enhanced animation loop with LOD updates
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
       controls.update();
+      
+      // Update LOD for optimized terrain meshes
+      if (layerManagerRef.current) {
+        layerManagerRef.current.updateLOD();
+      }
+      
+      // Render with enhanced post-processing pipeline
       if (composerRef.current) {
         composerRef.current.render();
       } else {
@@ -207,18 +274,26 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     };
     animate();
 
-    // Handle window resize
+    // Enhanced window resize handler
     const handleResize = () => {
-      if (!containerRef.current) return;
+      if (!containerRef.current || !composerRef.current) return;
       const newWidth = containerRef.current.clientWidth;
       const newHeight = containerRef.current.clientHeight;
 
       camera.aspect = newWidth / newHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(newWidth, newHeight);
+      
+      // Update post-processing pipeline
+      composerRef.current.setSize(newWidth, newHeight);
+      
+      // Update FXAA resolution
       if (fxaaPassRef.current) {
         const pixelRatio = renderer.getPixelRatio();
-        fxaaPassRef.current.material.uniforms['resolution'].value.set(1 / (newWidth * pixelRatio), 1 / (newHeight * pixelRatio));
+        fxaaPassRef.current.material.uniforms['resolution'].value.set(
+          1 / (newWidth * pixelRatio), 
+          1 / (newHeight * pixelRatio)
+        );
       }
     };
 
@@ -305,7 +380,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       if (apiKey && sceneRef.current) {
         const bbox = data.geo?.bbox;
         if (bbox) {
-          const url = buildGoogleStaticMapUrl(bbox, apiKey, 1024);
+          // Use higher resolution for better quality basemaps
+          const url = buildGoogleStaticMapUrl(bbox, apiKey, 2048);
           const width = data.bounds.maxX - data.bounds.minX;   // east-west
           const height = data.bounds.maxY - data.bounds.minY;  // north-south
           const centerX = (data.bounds.minX + data.bounds.maxX) / 2;
@@ -333,8 +409,12 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
               basemapTextureRef.current = texture;
               texture.wrapS = THREE.ClampToEdgeWrapping;
               texture.wrapT = THREE.ClampToEdgeWrapping;
-              texture.minFilter = THREE.LinearFilter;
+              // Enhanced texture filtering for crisp basemaps
+              texture.minFilter = THREE.LinearMipmapLinearFilter;
               texture.magFilter = THREE.LinearFilter;
+              texture.anisotropy = rendererRef.current!.capabilities.getMaxAnisotropy(); // Maximum anisotropic filtering
+              texture.generateMipmaps = true;
+              texture.format = THREE.RGBFormat;
 
               const geometry = new THREE.PlaneGeometry(width, height); // XY plane (Z-up)
               const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.95 });

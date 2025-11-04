@@ -8,6 +8,7 @@ import type { PointCloudData, ColorGradient } from '../types/lidar';
 import { PointClassification } from '../types/lidar';
 import { filterByClassification, pointsToTypedArrays } from '../utils/spatial';
 import { applyElevationColors, createGradientTexture, COLOR_GRADIENTS } from '../utils/colorMaps';
+import { OptimizedTerrainMesh } from '../utils/terrainOptimization';
 
 // Import shaders as strings
 import terrainVertShader from '../shaders/terrain.vert.glsl?raw';
@@ -17,7 +18,7 @@ import pointsFragShader from '../shaders/points.frag.glsl?raw';
 
 export interface Layer {
   name: string;
-  mesh: THREE.Points;
+  mesh: THREE.Points | THREE.Mesh | OptimizedTerrainMesh;
   visible: boolean;
   opacity: number;
 }
@@ -33,11 +34,36 @@ export class LayerManager {
   private slopeStrength = 0.2;
   private contourFrequency = 0.0; // lines per elevation range
   private contourStrength = 0.0;   // 0..1
+  private camera: THREE.Camera | null = null;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.currentGradient = COLOR_GRADIENTS.elevation;
     this.gradientTexture = createGradientTexture(this.currentGradient);
+  }
+
+  /**
+   * Set camera reference for LOD calculations
+   */
+  setCamera(camera: THREE.Camera): void {
+    this.camera = camera;
+  }
+
+  /**
+   * Update LOD for all terrain meshes based on camera position
+   */
+  updateLOD(): void {
+    if (!this.camera) return;
+
+    this.layers.forEach(layer => {
+      if (layer.mesh instanceof OptimizedTerrainMesh && this.camera) {
+        layer.mesh.updateLOD(this.camera.position);
+        // Update camera position in shaders for enhanced lighting
+        if (layer.mesh.material instanceof THREE.ShaderMaterial && this.camera) {
+          layer.mesh.material.uniforms.cameraPosition.value.copy(this.camera.position);
+        }
+      }
+    });
   }
 
   /**
@@ -195,20 +221,33 @@ export class LayerManager {
           slopeStrength: { value: this.slopeStrength },
           contourFrequency: { value: this.contourFrequency },
           contourStrength: { value: this.contourStrength },
+          // Enhanced quality uniforms
+          detailScale: { value: 1.0 },
+          roughness: { value: 0.1 }, // Subtle specular highlights
+          cameraPosition: { value: new THREE.Vector3(0, 0, 0) },
         },
       });
 
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.name = 'terrain_surface';
-      mesh.userData.isTerrainMesh = true;
+      // Create optimized terrain mesh with LOD support
+      const optimizedMesh = new OptimizedTerrainMesh(
+        positions,
+        indices,
+        ncols,
+        nrows,
+        material
+      );
+      optimizedMesh.name = 'terrain_surface';
+      optimizedMesh.userData.isTerrainMesh = true;
+      optimizedMesh.castShadow = true;
+      optimizedMesh.receiveShadow = true;
 
       // Remove old terrain layer if exists
       this.removeLayer('terrain');
 
-      this.scene.add(mesh);
+      this.scene.add(optimizedMesh);
       this.layers.set('terrain', {
         name: 'terrain',
-        mesh: mesh as unknown as THREE.Points, // unify layer typing
+        mesh: optimizedMesh,
         visible: true,
         opacity: 1.0,
       });
@@ -375,10 +414,17 @@ export class LayerManager {
     const layer = this.layers.get(name);
     if (layer) {
       this.scene.remove(layer.mesh);
-      layer.mesh.geometry.dispose();
-      if (layer.mesh.material instanceof THREE.Material) {
-        layer.mesh.material.dispose();
+      
+      // Handle optimized terrain meshes
+      if (layer.mesh instanceof OptimizedTerrainMesh) {
+        layer.mesh.dispose();
+      } else {
+        layer.mesh.geometry.dispose();
+        if (layer.mesh.material instanceof THREE.Material) {
+          layer.mesh.material.dispose();
+        }
       }
+      
       this.layers.delete(name);
     }
   }
@@ -389,16 +435,22 @@ export class LayerManager {
   clearAll(): void {
     for (const layer of this.layers.values()) {
       this.scene.remove(layer.mesh);
-      layer.mesh.geometry.dispose();
-      if (layer.mesh.material instanceof THREE.Material) {
-        layer.mesh.material.dispose();
+      
+      // Handle optimized terrain meshes
+      if (layer.mesh instanceof OptimizedTerrainMesh) {
+        layer.mesh.dispose();
+      } else {
+        layer.mesh.geometry.dispose();
+        if (layer.mesh.material instanceof THREE.Material) {
+          layer.mesh.material.dispose();
+        }
       }
     }
     this.layers.clear();
   }
 
   /**
-   * Dispose resources
+   * Dispose all resources
    */
   dispose(): void {
     this.clearAll();

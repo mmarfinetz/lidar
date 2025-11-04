@@ -4,7 +4,7 @@ import type { BoundingBox } from '../core/ElevationAPI';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.stubGlobal('fetch', mockFetch);
 
 describe('ArchaeologicalDatabaseService', () => {
   const testBbox: BoundingBox = {

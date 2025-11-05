@@ -31,6 +31,27 @@ vec3 calculateBlinnPhong(vec3 normal, vec3 lightDir, vec3 viewDir, vec3 baseColo
   return baseColor * 0.1 + baseColor * spec * 0.3; // Subtle specular highlight
 }
 
+// Multi-directional hillshade for archaeological feature detection
+// Blends lighting from 4-8 directions to reveal subtle terrain features
+float calculateMultiDirectionalHillshade(vec3 normal) {
+  // Four cardinal directions at 45° elevation angle
+  vec3 lights[4];
+  lights[0] = normalize(vec3(1.0, 0.0, 0.7));   // East
+  lights[1] = normalize(vec3(0.0, 1.0, 0.7));   // North
+  lights[2] = normalize(vec3(-1.0, 0.0, 0.7));  // West
+  lights[3] = normalize(vec3(0.0, -1.0, 0.7));  // South
+
+  // Calculate diffuse contribution from each direction
+  float totalShade = 0.0;
+  for (int i = 0; i < 4; i++) {
+    float NdotL = max(dot(normal, lights[i]), 0.0);
+    totalShade += pow(NdotL, 0.8);
+  }
+
+  // Average the contributions
+  return totalShade / 4.0;
+}
+
 void main() {
   // Normalize elevation to 0-1 range with improved precision
   float elevationRange = maxElevation - minElevation;
@@ -49,9 +70,16 @@ void main() {
   vec3 lightDir = normalize(sunDir);
   vec3 viewDir = normalize(cameraPosition - vPosition);
   
-  // Enhanced Lambertian diffuse lighting
+  // Enhanced Lambertian diffuse lighting (single direction)
   float NdotL = max(dot(normal, lightDir), 0.0);
   float diffuse = pow(NdotL, 0.8); // Slightly softer falloff for more realistic terrain
+
+  // Multi-directional hillshade for enhanced feature detection
+  float multiDirShade = calculateMultiDirectionalHillshade(normal);
+
+  // Blend between directional and multi-directional (60% multi, 40% directional)
+  // This reveals subtle features while maintaining depth perception
+  diffuse = mix(diffuse, multiDirShade, 0.6);
 
   // Advanced slope-based shading for enhanced micro-relief
   float slope = 1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0)));

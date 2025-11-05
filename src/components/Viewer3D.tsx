@@ -238,13 +238,13 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     // Enhanced FXAA quality settings - only set if uniforms exist
     const uniforms = fxaaPass.material.uniforms;
     if (uniforms['fxaaQualitySubpix']) {
-      uniforms['fxaaQualitySubpix'].value = 0.75;
+      uniforms['fxaaQualitySubpix'].value = 0.80; // Increased from 0.75 for better subpixel detail
     }
     if (uniforms['fxaaQualityEdgeThreshold']) {
-      uniforms['fxaaQualityEdgeThreshold'].value = 0.166;
+      uniforms['fxaaQualityEdgeThreshold'].value = 0.125; // Reduced from 0.166 for sharper edges
     }
     if (uniforms['fxaaQualityEdgeThresholdMin']) {
-      uniforms['fxaaQualityEdgeThresholdMin'].value = 0.0833;
+      uniforms['fxaaQualityEdgeThresholdMin'].value = 0.0625; // Reduced from 0.0833 for sharper detail
     }
     composer.addPass(fxaaPass);
 
@@ -494,8 +494,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       if (apiKey && sceneRef.current) {
         const bbox = data.geo?.bbox;
         if (bbox) {
-          // Use higher resolution for better quality basemaps
-          const url = buildGoogleStaticMapUrl(bbox, apiKey, 2048);
+          // Use maximum allowed resolution for Google Static Maps (640 with scale=2 = 1280x1280)
+          const url = buildGoogleStaticMapUrl(bbox, apiKey, 640);
           const width = data.bounds.maxX - data.bounds.minX;   // east-west
           const height = data.bounds.maxY - data.bounds.minY;  // north-south
           const centerX = (data.bounds.minX + data.bounds.maxX) / 2;
@@ -528,7 +528,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
               texture.magFilter = THREE.LinearFilter;
               texture.anisotropy = rendererRef.current!.capabilities.getMaxAnisotropy(); // Maximum anisotropic filtering
               texture.generateMipmaps = true;
-              texture.format = THREE.RGBFormat;
+              texture.colorSpace = THREE.SRGBColorSpace; // Proper color space for accurate colors
+              texture.format = THREE.RGBAFormat; // Use RGBA for better compatibility
 
               const geometry = new THREE.PlaneGeometry(width, height); // XY plane (Z-up)
               const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.95 });

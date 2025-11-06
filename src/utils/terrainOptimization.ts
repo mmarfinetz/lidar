@@ -11,10 +11,12 @@ export interface LODLevel {
 }
 
 export const DEFAULT_LOD_LEVELS: LODLevel[] = [
-  { distance: 20, skipFactor: 1 },   // Close: Full detail
-  { distance: 50, skipFactor: 2 },   // Medium: Half detail
-  { distance: 100, skipFactor: 4 },  // Far: Quarter detail
-  { distance: 200, skipFactor: 8 },  // Very far: Eighth detail
+  { distance: 20, skipFactor: 1 },    // Close: Full detail
+  { distance: 40, skipFactor: 2 },    // Medium-close: Half detail
+  { distance: 70, skipFactor: 4 },    // Medium: Quarter detail
+  { distance: 120, skipFactor: 8 },   // Far: Eighth detail
+  { distance: 200, skipFactor: 16 },  // Very far: 1/16th detail
+  { distance: 350, skipFactor: 32 },  // Extremely far: 1/32nd detail
 ];
 
 /**

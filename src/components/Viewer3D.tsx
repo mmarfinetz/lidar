@@ -238,13 +238,13 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     // Enhanced FXAA quality settings - only set if uniforms exist
     const uniforms = fxaaPass.material.uniforms;
     if (uniforms['fxaaQualitySubpix']) {
-      uniforms['fxaaQualitySubpix'].value = 0.75;
+      uniforms['fxaaQualitySubpix'].value = 0.80; // Increased from 0.75 for better subpixel detail
     }
     if (uniforms['fxaaQualityEdgeThreshold']) {
-      uniforms['fxaaQualityEdgeThreshold'].value = 0.166;
+      uniforms['fxaaQualityEdgeThreshold'].value = 0.125; // Reduced from 0.166 for sharper edges
     }
     if (uniforms['fxaaQualityEdgeThresholdMin']) {
-      uniforms['fxaaQualityEdgeThresholdMin'].value = 0.0833;
+      uniforms['fxaaQualityEdgeThresholdMin'].value = 0.0625; // Reduced from 0.0833 for sharper detail
     }
     composer.addPass(fxaaPass);
 
@@ -494,8 +494,6 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       if (apiKey && sceneRef.current) {
         const bbox = data.geo?.bbox;
         if (bbox) {
-          // Use higher resolution for better quality basemaps
-          const url = buildGoogleStaticMapUrl(bbox, apiKey, 2048);
           const width = data.bounds.maxX - data.bounds.minX;   // east-west
           const height = data.bounds.maxY - data.bounds.minY;  // north-south
           const centerX = (data.bounds.minX + data.bounds.maxX) / 2;
@@ -515,36 +513,50 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
             basemapTextureRef.current = null;
           }
 
-          const loader = new THREE.TextureLoader();
-          loader.crossOrigin = 'anonymous';
-          loader.load(
-            url,
-            (texture) => {
-              basemapTextureRef.current = texture;
-              texture.wrapS = THREE.ClampToEdgeWrapping;
-              texture.wrapT = THREE.ClampToEdgeWrapping;
-              // Enhanced texture filtering for crisp basemaps
-              texture.minFilter = THREE.LinearMipmapLinearFilter;
-              texture.magFilter = THREE.LinearFilter;
-              texture.anisotropy = rendererRef.current!.capabilities.getMaxAnisotropy(); // Maximum anisotropic filtering
-              texture.generateMipmaps = true;
-              texture.format = THREE.RGBFormat;
+          // Helper function to load basemap with fallback
+          const loadBasemap = (size: number) => {
+            const basemapUrl = buildGoogleStaticMapUrl(bbox, apiKey, size);
+            const loader = new THREE.TextureLoader();
+            loader.crossOrigin = 'anonymous';
+            loader.load(
+              basemapUrl,
+              (texture) => {
+                basemapTextureRef.current = texture;
+                texture.wrapS = THREE.ClampToEdgeWrapping;
+                texture.wrapT = THREE.ClampToEdgeWrapping;
+                // Enhanced texture filtering for crisp basemaps
+                texture.minFilter = THREE.LinearMipmapLinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.anisotropy = rendererRef.current!.capabilities.getMaxAnisotropy(); // Maximum anisotropic filtering
+                texture.generateMipmaps = true;
+                texture.colorSpace = THREE.SRGBColorSpace; // Proper color space for accurate colors
+                texture.format = THREE.RGBAFormat; // Use RGBA for better compatibility
 
-              const geometry = new THREE.PlaneGeometry(width, height); // XY plane (Z-up)
-              const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.95 });
-              const mesh = new THREE.Mesh(geometry, material);
-              // Place at ground level (z ~ base elevation)
-              mesh.position.set(centerX, centerY, baseZ);
-              mesh.name = 'basemap_plane';
+                const geometry = new THREE.PlaneGeometry(width, height); // XY plane (Z-up)
+                const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.95 });
+                const mesh = new THREE.Mesh(geometry, material);
+                // Place at ground level (z ~ base elevation)
+                mesh.position.set(centerX, centerY, baseZ);
+                mesh.name = 'basemap_plane';
 
-              sceneRef.current!.add(mesh);
-              basemapMeshRef.current = mesh;
-            },
-            undefined,
-            (err) => {
-              console.warn('Failed to load Google Static Map basemap:', err);
-            }
-          );
+                sceneRef.current!.add(mesh);
+                basemapMeshRef.current = mesh;
+                console.log(`Basemap loaded successfully at ${size}x${size}`);
+              },
+              undefined,
+              (err) => {
+                console.warn(`Failed to load basemap at ${size}x${size}:`, err);
+                // Fallback to lower resolution
+                if (size > 640) {
+                  console.log('Trying lower resolution basemap (640x640)...');
+                  loadBasemap(640);
+                }
+              }
+            );
+          };
+
+          // Start with highest resolution
+          loadBasemap(2048);
         }
       }
     } catch (e) {

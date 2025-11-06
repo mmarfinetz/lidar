@@ -106,7 +106,7 @@ const DrawRectangle: React.FC<{
 
 export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loading }) => {
   const [selectedBounds, setSelectedBounds] = useState<LatLngBounds | null>(null);
-  const [selectedDataset] = useState('SRTMGL1'); // Use 30m resolution instead of 90m for higher quality
+  const [selectedDataset, setSelectedDataset] = useState('SRTMGL1'); // Will be auto-updated based on region
   const [validationError, setValidationError] = useState<string | null>(null);
   const [estimatedPoints, setEstimatedPoints] = useState<number>(0);
   const [drawingEnabled, setDrawingEnabled] = useState(false);
@@ -157,9 +157,12 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
           canRevealArchaeology: availability.canRevealArchaeology
         });
 
-        // Auto-scan with best available data source
-        console.log('🟣 Auto-scanning with best available data source...');
-        onRegionSelect(bbox, selectedDataset);
+        // Auto-select highest resolution dataset based on availability
+        const bestDataset = DataAvailabilityService.mapSourceToDataset(availability.bestSource.id, bbox);
+        setSelectedDataset(bestDataset);
+
+        console.log('🟣 Auto-scanning with best available data source:', bestDataset);
+        onRegionSelect(bbox, bestDataset);
       } catch (error) {
         console.warn('Failed to check data availability:', error);
         // Fallback to basic estimation

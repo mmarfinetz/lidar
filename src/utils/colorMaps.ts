@@ -30,6 +30,31 @@ export const COLOR_GRADIENTS: Record<string, ColorGradient> = {
     colors: ['#1a4ba6', '#2d7bb6', '#6fb6d9', '#a3d6e8', '#e7f5b3', '#ffc973', '#f77f4d', '#d35147', '#8b2121'],
     positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1],
   },
+  atlas: {
+    name: 'Atlas',
+    colors: ['#09386d', '#1a6fad', '#4fa6c5', '#a3d5dd', '#f1f1e6', '#e8d4a2', '#d3a961', '#b87333', '#8b4513'],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1],
+  },
+  turbo: {
+    name: 'Turbo',
+    colors: ['#30123b', '#4777ef', '#1ac7c2', '#28ed8a', '#a0fb15', '#fec832', '#fa5427', '#c42503', '#7a0403'],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1],
+  },
+  archaeological: {
+    name: 'Archaeological',
+    colors: ['#4a5a3a', '#6b7c5d', '#8b9d7c', '#c4b896', '#d9cdb3', '#e8d5ba', '#c9a66b', '#a0714e', '#6b4423'],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1],
+  },
+  bathymetric: {
+    name: 'Bathymetric',
+    colors: ['#050a30', '#0e3b70', '#1a6db0', '#57a0c8', '#9fd3e6', '#ddf0f5', '#b8e6af', '#7fc97f', '#4d804d'],
+    positions: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1],
+  },
+  grayscale: {
+    name: 'Grayscale',
+    colors: ['#1a1a1a', '#404040', '#666666', '#8c8c8c', '#b3b3b3', '#d9d9d9', '#f0f0f0'],
+    positions: [0, 0.167, 0.333, 0.5, 0.667, 0.833, 1],
+  },
 };
 
 /**

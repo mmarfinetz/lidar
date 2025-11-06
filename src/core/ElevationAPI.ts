@@ -6,6 +6,7 @@
 import type { PointCloudData, LiDARPoint } from '../types/lidar';
 import { calculateBounds } from '../utils/spatial';
 import { metersPerDegree } from '../utils/geo';
+import { cacheManager } from '../utils/cacheManager';
 
 export interface BoundingBox {
   south: number;
@@ -96,6 +97,15 @@ export class ElevationAPI {
     const apiKey = this.getApiKey();
 
     try {
+      // Check cache first
+      onProgress?.(5, 'Checking cache...');
+      const cached = await cacheManager.get(bbox, dataset);
+      if (cached) {
+        console.log('Using cached elevation data');
+        onProgress?.(100, 'Loaded from cache!');
+        return cached;
+      }
+
       if (!apiKey) {
         throw new Error(
           'OpenTopography API key required. Please:\n' +
@@ -143,7 +153,16 @@ export class ElevationAPI {
       
       onProgress?.(70, 'Converting to point cloud...');
       const pointCloud = this.parseASCIIGrid(text, bbox);
-      
+
+      // Cache the result for future use
+      onProgress?.(90, 'Caching data...');
+      try {
+        await cacheManager.set(bbox, dataset, pointCloud);
+      } catch (err) {
+        console.warn('Failed to cache elevation data:', err);
+        // Non-critical error, continue anyway
+      }
+
       onProgress?.(100, 'Complete!');
       return pointCloud;
       

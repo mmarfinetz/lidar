@@ -142,7 +142,7 @@ export class DataAvailabilityService {
     {
       id: 'global_dem',
       name: 'Global DEM (SRTM/ALOS)',
-      resolution: '30-90m', 
+      resolution: '30-90m',
       pointDensity: '~0.0001 points/m²',
       coverage: 'global',
       quality: 'low',
@@ -154,6 +154,28 @@ export class DataAvailabilityService {
       }
     }
   ];
+
+  /**
+   * Map data source IDs to actual API dataset IDs
+   */
+  static mapSourceToDataset(sourceId: string, bbox: BoundingBox): string {
+    switch (sourceId) {
+      case 'usgs_3dep_lidar':
+        return 'USGS_3DEP';
+      case 'opentopo_archaeological':
+      case 'opentopo_highres':
+        return 'ARCHAEOLOGICAL';
+      case 'european_national':
+        return 'SRTMGL1'; // Fallback to global DEM since European sources need manual download
+      case 'global_dem':
+      default:
+        // Select best global DEM based on region
+        if (bbox.south >= -56 && bbox.north <= 60) {
+          return 'SRTMGL1'; // 30m SRTM for better quality
+        }
+        return 'AW3D30'; // ALOS for areas outside SRTM coverage
+    }
+  }
 
   /**
    * Check data availability for a bounding box

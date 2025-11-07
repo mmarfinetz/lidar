@@ -21,6 +21,7 @@
     "@types/leaflet": "^1.9.21",
     "@types/three": "^0.181.0",
     "clsx": "^2.1.1",
+    "geotiff": "^2.1.4-beta.0",
     "laz-perf": "^0.0.7",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.552.0",

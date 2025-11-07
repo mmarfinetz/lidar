@@ -86,7 +86,7 @@ export class ElevationAPI {
   }
 
   /**
-   * Fetch elevation data from OpenTopography Global DEM API
+   * Fetch elevation data - automatically selects highest resolution available
    */
   static async fetchElevationData(
     bbox: BoundingBox,
@@ -105,11 +105,35 @@ export class ElevationAPI {
         );
       }
 
-      const { demtype, downgraded } = this.normalizeDataset(dataset);
-      onProgress?.(10, downgraded
-        ? 'High‑res not supported via API; using global 30m preview...'
-        : 'Requesting elevation data...'
+      // First, try to fetch high-resolution data
+      onProgress?.(5, 'Checking for high-resolution data...');
+
+      const { HighResolutionFetcher } = await import('./HighResolutionFetcher');
+
+      const highResResult = await HighResolutionFetcher.fetchBestAvailable(
+        bbox,
+        (progress, status) => {
+          // Scale progress from 5-80% for high-res attempt
+          const scaledProgress = 5 + (progress / 100) * 75;
+          onProgress?.(scaledProgress, status);
+        }
       );
+
+      if (highResResult) {
+        console.log(`✅ Successfully fetched ${highResResult.source.name} (${highResResult.source.resolution})`);
+        onProgress?.(100, `Complete! Using ${highResResult.source.name}`);
+        return highResResult.data;
+      }
+
+      // Fall back to global DEM if no high-res data available
+      console.log('📊 Falling back to OpenTopography Global DEM');
+      onProgress?.(10, 'Using global DEM (30m resolution)...');
+
+      const { demtype, downgraded } = this.normalizeDataset(dataset);
+
+      if (downgraded) {
+        console.log(`Dataset ${dataset} not supported, downgraded to ${demtype}`);
+      }
 
       const params = new URLSearchParams({
         demtype,
@@ -122,12 +146,12 @@ export class ElevationAPI {
       });
 
       const url = `${this.OPENTOPO_BASE}?${params}`;
-      console.log('Requesting OpenTopography API...');
+      console.log('Requesting OpenTopography Global DEM API...');
 
-      onProgress?.(20, 'Downloading data from OpenTopography...');
+      onProgress?.(20, 'Downloading global DEM data...');
 
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           throw new Error('Invalid API key. Please check your OpenTopography API key.');
@@ -140,13 +164,13 @@ export class ElevationAPI {
 
       onProgress?.(50, 'Processing elevation data...');
       const text = await response.text();
-      
+
       onProgress?.(70, 'Converting to point cloud...');
       const pointCloud = this.parseASCIIGrid(text, bbox);
-      
+
       onProgress?.(100, 'Complete!');
       return pointCloud;
-      
+
     } catch (error) {
       console.error('Error fetching elevation data:', error);
       throw error;

@@ -213,7 +213,7 @@ export class USGSLidarService {
       instructions += `📊 LiDAR Point Clouds (${pointClouds.length} files):\n`;
       instructions += 'Format: LAZ (can be loaded directly in your app)\n';
       instructions += 'Resolution: 1-2m (2-8+ points/m²)\n\n';
-      
+
       instructions += 'Download steps:\n';
       instructions += '1. Visit: https://apps.nationalmap.gov/downloader/\n';
       instructions += '2. Navigate to your selected region\n';
@@ -226,7 +226,7 @@ export class USGSLidarService {
       instructions += `🗺️ High-Resolution DEMs (${dems.length} files):\n`;
       instructions += 'Format: GeoTIFF (needs conversion)\n';
       instructions += 'Resolution: 1m\n\n';
-      
+
       instructions += 'Download & convert:\n';
       instructions += '1. Download GeoTIFF files from National Map\n';
       instructions += '2. Convert: gdal_translate -of AAIGrid input.tif output.asc\n';
@@ -236,5 +236,68 @@ export class USGSLidarService {
     instructions += '✨ This data can reveal archaeological features!';
 
     return instructions;
+  }
+
+  /**
+   * Fetch USGS 3DEP elevation data directly
+   * Uses the USGS Elevation Point Query Service for on-demand access
+   */
+  static async fetch3DEPElevation(
+    bbox: BoundingBox,
+    onProgress?: (progress: number, status: string) => void
+  ): Promise<ArrayBuffer | null> {
+    if (!this.isWithinUS(bbox)) {
+      console.log('Location is outside US, USGS 3DEP not available');
+      return null;
+    }
+
+    try {
+      onProgress?.(10, 'Checking USGS 3DEP availability...');
+
+      // First check if data is available
+      const availability = await this.checkLidarAvailability(bbox);
+
+      if (!availability.hasDEM && !availability.hasPointClouds) {
+        console.log('No USGS 3DEP data available for this region');
+        return null;
+      }
+
+      onProgress?.(20, `Found ${availability.products.length} USGS products...`);
+
+      // Try to find a DEM product first (easier to fetch)
+      const demProduct = availability.products.find(p => p.format === 'GeoTIFF');
+
+      if (demProduct && demProduct.downloadURL) {
+        onProgress?.(30, 'Downloading USGS 1m DEM...');
+
+        try {
+          // Attempt to fetch the GeoTIFF directly
+          const response = await fetch(demProduct.downloadURL, {
+            mode: 'cors',
+            cache: 'default'
+          });
+
+          if (response.ok) {
+            onProgress?.(80, 'Processing USGS data...');
+            const arrayBuffer = await response.arrayBuffer();
+            return arrayBuffer;
+          } else {
+            console.warn(`Failed to fetch USGS DEM: ${response.status} ${response.statusText}`);
+          }
+        } catch (error) {
+          console.warn('Direct USGS DEM fetch failed (CORS or network issue):', error);
+        }
+      }
+
+      // If direct download fails, provide instructions
+      console.log('USGS data available but requires manual download due to CORS restrictions');
+      onProgress?.(100, 'USGS data requires manual download - see instructions');
+
+      return null;
+
+    } catch (error) {
+      console.error('Error fetching USGS 3DEP data:', error);
+      return null;
+    }
   }
 }

@@ -54,11 +54,14 @@ export class ArchaeologicalDatabaseService {
   private static readonly CACHE_TTL = parseInt(import.meta.env.VITE_ARCHAEOLOGICAL_CACHE_TTL || '86400000'); // 24 hours default
   private static readonly REQUEST_TIMEOUT = 5000; // 5 seconds
 
+  // Feature flag: disable external database queries by default (requires backend proxy)
+  private static readonly ENABLE_EXTERNAL_DATABASES = import.meta.env.VITE_ENABLE_ARCHAEOLOGICAL_DATABASES === 'true';
+
   private static databases: DatabaseSource[] = [
     {
       name: 'Open Context',
       priority: 1,
-      enabled: true,
+      enabled: this.ENABLE_EXTERNAL_DATABASES, // Disabled by default
       queryFunction: this.queryOpenContext.bind(this),
       rateLimit: {
         requestsPerMinute: parseInt(import.meta.env.VITE_OPENCONTEXT_RATE_LIMIT || '60'),
@@ -69,12 +72,12 @@ export class ArchaeologicalDatabaseService {
     {
       name: 'ARIADNE Portal',
       priority: 2,
-      enabled: true,
+      enabled: this.ENABLE_EXTERNAL_DATABASES, // Disabled by default
       queryFunction: this.queryAriadne.bind(this),
     },
     {
       name: 'Curated Database',
-      priority: 999, // Fallback
+      priority: 999, // Fallback - always enabled (uses local data)
       enabled: true,
       queryFunction: this.queryCuratedDatabase.bind(this),
     }

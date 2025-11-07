@@ -192,16 +192,20 @@ export class ArchaeologicalDatabaseService {
    */
   private static async queryAriadne(bbox: BoundingBox): Promise<ArchaeologicalSite[]> {
     try {
-      // ARIADNE Portal spatial search (if available)
-      // Note: This may require different endpoint or authentication
-      // const polygon = `POLYGON((${bbox.west} ${bbox.south}, ${bbox.east} ${bbox.south}, ${bbox.east} ${bbox.north}, ${bbox.west} ${bbox.north}, ${bbox.west} ${bbox.south}))`;
-      
-      // Placeholder for ARIADNE API - actual endpoint may vary
-      // When API is confirmed, implement search with spatial polygon query
+      // Use our API proxy to avoid browser CORS issues
+      const baseUrl = '/api/ariadne';
+      const params = new URLSearchParams({
+        bbox: `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`,
+        rows: '100'
+      });
 
-      // For now, return empty array until we can confirm the API endpoint
-      console.log('ARIADNE Portal integration pending API confirmation for bbox:', bbox);
-      return [];
+      const response = await fetch(`${baseUrl}?${params}`);
+      if (!response.ok) {
+        throw new Error(`ARIADNE API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return this.parseAriadneResponse(data);
     } catch (error) {
       console.warn('ARIADNE query failed:', error);
       return [];
@@ -393,6 +397,96 @@ export class ArchaeologicalDatabaseService {
     }
     
     return 'low';
+  }
+
+  /**
+   * Parse ARIADNE Portal API response
+   */
+  private static parseAriadneResponse(data: any): ArchaeologicalSite[] {
+    const sites: ArchaeologicalSite[] = [];
+
+    if (data.response && data.response.docs && Array.isArray(data.response.docs)) {
+      for (const doc of data.response.docs) {
+        try {
+          // ARIADNE uses Solr format with spatial field
+          const spatial = doc.spatial;
+
+          if (spatial) {
+            // Parse spatial coordinates (can be various formats)
+            let coordinates: ArchaeologicalSite['coordinates'];
+
+            if (typeof spatial === 'string') {
+              // Try to parse WKT or other formats
+              coordinates = this.parseSpatialString(spatial);
+            } else if (spatial.coordinates) {
+              coordinates = this.extractCoordinates({ type: 'Point', coordinates: spatial.coordinates });
+            } else {
+              continue; // Skip if we can't parse spatial data
+            }
+
+            const site: ArchaeologicalSite = {
+              id: doc.id || `ariadne-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              name: doc.title || doc.label || 'Archaeological Site',
+              description: doc.description || doc.abstract || 'Archaeological site from ARIADNE Portal',
+              period: doc.temporal || doc.period || undefined,
+              culture: doc.culture || undefined,
+              significance: this.determineSiteSignificance({ label: doc.title, description: doc.description }),
+              coordinates,
+              hasLidarData: false, // ARIADNE typically doesn't have direct LiDAR info
+              references: [{
+                title: `ARIADNE Portal: ${doc.title || 'Archaeological Record'}`,
+                url: doc.uri || doc.url,
+                type: 'database'
+              }],
+              source: {
+                database: 'ARIADNE Portal',
+                url: doc.uri || doc.url,
+                lastUpdated: new Date().toISOString()
+              }
+            };
+
+            sites.push(site);
+          }
+        } catch (error) {
+          console.warn('Error parsing ARIADNE document:', error);
+        }
+      }
+    }
+
+    return sites;
+  }
+
+  /**
+   * Parse spatial string (WKT or other formats)
+   */
+  private static parseSpatialString(spatial: string): ArchaeologicalSite['coordinates'] {
+    // Try to parse WKT POINT format: "POINT(lon lat)"
+    const pointMatch = spatial.match(/POINT\s*\(\s*([+-]?\d+\.?\d*)\s+([+-]?\d+\.?\d*)\s*\)/i);
+    if (pointMatch) {
+      const lon = parseFloat(pointMatch[1]);
+      const lat = parseFloat(pointMatch[2]);
+      const buffer = 0.01; // ~1km buffer
+      return {
+        south: lat - buffer,
+        north: lat + buffer,
+        west: lon - buffer,
+        east: lon + buffer
+      };
+    }
+
+    // Try to parse WKT ENVELOPE format: "ENVELOPE(west, east, north, south)"
+    const envelopeMatch = spatial.match(/ENVELOPE\s*\(\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)\s*\)/i);
+    if (envelopeMatch) {
+      return {
+        west: parseFloat(envelopeMatch[1]),
+        east: parseFloat(envelopeMatch[2]),
+        north: parseFloat(envelopeMatch[3]),
+        south: parseFloat(envelopeMatch[4])
+      };
+    }
+
+    // Fallback
+    return { south: 0, north: 0, west: 0, east: 0 };
   }
 
   /**

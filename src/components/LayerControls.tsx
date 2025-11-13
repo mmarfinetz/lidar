@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef, useCallback, useState } from 'react';
 import { Eye, EyeOff, Layers, Grid3X3 } from 'lucide-react';
+import { debounce } from '../utils/performance';
 
 interface LayerControlsProps {
   surfaceVisible: boolean;
@@ -26,6 +27,39 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
   onTerrainOpacityChange,
   onGridVisibilityChange,
 }) => {
+  // Local state for immediate UI feedback
+  const [localSurfaceOpacity, setLocalSurfaceOpacity] = useState(surfaceOpacity);
+  const [localTerrainOpacity, setLocalTerrainOpacity] = useState(terrainOpacity);
+
+  // Create debounced handlers for performance
+  const debouncedSurfaceOpacityChange = useRef(
+    debounce((opacity: number) => onSurfaceOpacityChange(opacity), 50)
+  ).current;
+
+  const debouncedTerrainOpacityChange = useRef(
+    debounce((opacity: number) => onTerrainOpacityChange(opacity), 50)
+  ).current;
+
+  // Handle surface opacity change with immediate UI update and debounced actual change
+  const handleSurfaceOpacityChange = useCallback((value: number) => {
+    setLocalSurfaceOpacity(value);
+    debouncedSurfaceOpacityChange(value);
+  }, [debouncedSurfaceOpacityChange]);
+
+  // Handle terrain opacity change with immediate UI update and debounced actual change
+  const handleTerrainOpacityChange = useCallback((value: number) => {
+    setLocalTerrainOpacity(value);
+    debouncedTerrainOpacityChange(value);
+  }, [debouncedTerrainOpacityChange]);
+
+  // Update local state when props change
+  React.useEffect(() => {
+    setLocalSurfaceOpacity(surfaceOpacity);
+  }, [surfaceOpacity]);
+
+  React.useEffect(() => {
+    setLocalTerrainOpacity(terrainOpacity);
+  }, [terrainOpacity]);
   return (
     <div className="bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 border border-gray-700 shadow-xl">
       <div className="flex items-center gap-2 mb-4">
@@ -58,12 +92,12 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
               min="0"
               max="1"
               step="0.01"
-              value={surfaceOpacity}
-              onChange={(e) => onSurfaceOpacityChange(parseFloat(e.target.value))}
+              value={localSurfaceOpacity}
+              onChange={(e) => handleSurfaceOpacityChange(parseFloat(e.target.value))}
               className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
             />
             <div className="text-xs text-gray-500 text-right">
-              {Math.round(surfaceOpacity * 100)}%
+              {Math.round(localSurfaceOpacity * 100)}%
             </div>
           </div>
         )}
@@ -94,12 +128,12 @@ export const LayerControls: React.FC<LayerControlsProps> = ({
               min="0"
               max="1"
               step="0.01"
-              value={terrainOpacity}
-              onChange={(e) => onTerrainOpacityChange(parseFloat(e.target.value))}
+              value={localTerrainOpacity}
+              onChange={(e) => handleTerrainOpacityChange(parseFloat(e.target.value))}
               className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
             />
             <div className="text-xs text-gray-500 text-right">
-              {Math.round(terrainOpacity * 100)}%
+              {Math.round(localTerrainOpacity * 100)}%
             </div>
           </div>
         )}

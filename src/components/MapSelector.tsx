@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Rectangle, useMapEvents, ZoomControl } from 'react-leaflet';
 import { LatLngBounds, LatLng } from 'leaflet';
 import type { BoundingBox } from '../core/ElevationAPI';
@@ -6,6 +6,7 @@ import { ElevationAPI } from '../core/ElevationAPI';
 import { DataAvailabilityService, type AvailabilityResult } from '../core/DataAvailabilityService';
 import { HighResolutionGuide } from './HighResolutionGuide';
 import { MapPin, Download, Info, Square, Hand, Zap, AlertTriangle, Target } from 'lucide-react';
+import { rafThrottle } from '../utils/performance';
 
 interface MapSelectorProps {
   onRegionSelect: (bbox: BoundingBox, dataset: string) => void;
@@ -19,6 +20,11 @@ const DrawRectangle: React.FC<{
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [endPoint, setEndPoint] = useState<LatLng | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+
+  // Create a throttled version of setEndPoint for smooth performance
+  const throttledSetEndPoint = useRef(
+    rafThrottle((latlng: LatLng) => setEndPoint(latlng))
+  ).current;
 
   const map = useMapEvents({
     mousedown: (e) => {
@@ -38,7 +44,8 @@ const DrawRectangle: React.FC<{
     },
     mousemove: (e) => {
       if (startPoint && isDrawing && drawingEnabled) {
-        setEndPoint(e.latlng);
+        // Use throttled update for smooth performance
+        throttledSetEndPoint(e.latlng);
       }
     },
     mouseup: (e) => {

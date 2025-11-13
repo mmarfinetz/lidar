@@ -10,6 +10,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { LayerManager } from '../core/LayerManager';
 import type { PointCloudData } from '../types/lidar';
+import { throttle, debounce } from '../utils/performance';
 import { buildGoogleStaticMapUrl } from '../core/Basemap';
 
 interface Viewer3DProps {
@@ -255,8 +256,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     composerRef.current = composer;
     fxaaPassRef.current = fxaaPass;
 
-    // Mouse move handler for coordinate tooltip
-    const handleMouseMove = (event: MouseEvent) => {
+    // Mouse move handler for coordinate tooltip (throttled for performance)
+    const handleMouseMoveCore = (event: MouseEvent) => {
       if (!raycaster || !camera || !scene || !data) return;
 
       const rect = renderer.domElement.getBoundingClientRect();
@@ -266,7 +267,7 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       );
 
       raycaster.setFromCamera(mouse, camera);
-      
+
       // Get all terrain meshes for raycasting
       const terrainMeshes: THREE.Object3D[] = [];
       scene.traverse((child) => {
@@ -280,7 +281,7 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
         if (intersects.length > 0) {
           const intersect = intersects[0];
           const point = intersect.point;
-          
+
           setTooltip({
             x: point.x,
             y: point.y,
@@ -300,6 +301,9 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       }
     };
 
+    // Throttle mouse move to ~60fps for smooth performance
+    const handleMouseMove = throttle(handleMouseMoveCore, 16);
+
     const handleMouseLeave = () => {
       setTooltip(null);
     };
@@ -308,19 +312,34 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     renderer.domElement.addEventListener('mousemove', handleMouseMove);
     renderer.domElement.addEventListener('mouseleave', handleMouseLeave);
 
-    // Enhanced animation loop with LOD updates
+    // Track camera position for LOD optimization
+    let lastCameraPosition = new THREE.Vector3();
+    let lastCameraQuaternion = new THREE.Quaternion();
+    const lodUpdateThreshold = 0.1; // Only update LOD if camera moved > 0.1 units or rotated
+
+    // Enhanced animation loop with optimized LOD updates
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
       controls.update();
-      
+
       // Animate test cube
       animateTestCube();
-      
-      // Update LOD for optimized terrain meshes
+
+      // Only update LOD when camera position/rotation changes significantly
       if (layerManagerRef.current) {
-        layerManagerRef.current.updateLOD();
+        const currentPosition = camera.position;
+        const currentQuaternion = camera.quaternion;
+
+        const positionChanged = currentPosition.distanceTo(lastCameraPosition) > lodUpdateThreshold;
+        const rotationChanged = !currentQuaternion.equals(lastCameraQuaternion);
+
+        if (positionChanged || rotationChanged) {
+          layerManagerRef.current.updateLOD();
+          lastCameraPosition.copy(currentPosition);
+          lastCameraQuaternion.copy(currentQuaternion);
+        }
       }
-      
+
       // Render with enhanced post-processing pipeline
       if (composerRef.current) {
         composerRef.current.render();
@@ -334,8 +353,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     renderer.render(scene, camera);
     console.log('First render completed');
 
-    // Enhanced window resize handler
-    const handleResize = () => {
+    // Enhanced window resize handler (debounced for performance)
+    const handleResizeCore = () => {
       if (!containerRef.current || !composerRef.current) return;
       const newWidth = containerRef.current.clientWidth;
       const newHeight = containerRef.current.clientHeight;
@@ -345,24 +364,27 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
       camera.aspect = newWidth / newHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(newWidth, newHeight);
-      
+
       // Update post-processing pipeline
       composerRef.current.setSize(newWidth, newHeight);
-      
+
       // Update FXAA resolution
       if (fxaaPassRef.current) {
         const pixelRatio = renderer.getPixelRatio();
         fxaaPassRef.current.material.uniforms['resolution'].value.set(
-          1 / (newWidth * pixelRatio), 
+          1 / (newWidth * pixelRatio),
           1 / (newHeight * pixelRatio)
         );
       }
     };
 
+    // Debounce resize handler to avoid excessive updates during window resize
+    const handleResize = debounce(handleResizeCore, 150);
+
     window.addEventListener('resize', handleResize);
 
-    // Use ResizeObserver for better container size detection
-    const resizeObserver = new ResizeObserver((entries) => {
+    // Use ResizeObserver for better container size detection (debounced)
+    const handleResizeObserver = debounce((entries: ResizeObserverEntry[]) => {
       for (const entry of entries) {
         const { width: newWidth, height: newHeight } = entry.contentRect;
         console.log('ResizeObserver detected size change:', { newWidth, newHeight });
@@ -370,14 +392,24 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
           camera.aspect = newWidth / newHeight;
           camera.updateProjectionMatrix();
           renderer.setSize(newWidth, newHeight);
-          
+
           if (composerRef.current) {
             composerRef.current.setSize(newWidth, newHeight);
           }
+
+          // Update FXAA resolution
+          if (fxaaPassRef.current) {
+            const pixelRatio = renderer.getPixelRatio();
+            fxaaPassRef.current.material.uniforms['resolution'].value.set(
+              1 / (newWidth * pixelRatio),
+              1 / (newHeight * pixelRatio)
+            );
+          }
         }
       }
-    });
+    }, 150);
 
+    const resizeObserver = new ResizeObserver(handleResizeObserver);
     resizeObserver.observe(container);
 
     // Cleanup

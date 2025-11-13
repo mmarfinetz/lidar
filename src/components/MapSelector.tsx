@@ -22,8 +22,14 @@ const DrawRectangle: React.FC<{
   const [isDrawing, setIsDrawing] = useState(false);
 
   // Create a throttled version of setEndPoint for smooth performance
+  // Track if component is mounted to prevent setState on unmounted component
+  const isMountedRef = useRef(true);
   const throttledSetEndPoint = useRef(
-    rafThrottle((latlng: LatLng) => setEndPoint(latlng))
+    rafThrottle((latlng: LatLng) => {
+      if (isMountedRef.current) {
+        setEndPoint(latlng);
+      }
+    })
   ).current;
 
   const map = useMapEvents({
@@ -38,9 +44,9 @@ const DrawRectangle: React.FC<{
       setEndPoint(e.latlng);
       setIsDrawing(true);
 
-      // Disable map dragging while drawing
-      map.dragging.disable();
-      map.doubleClickZoom.disable();
+      // Disable map dragging while drawing (with defensive null checks)
+      if (map && map.dragging) map.dragging.disable();
+      if (map && map.doubleClickZoom) map.doubleClickZoom.disable();
     },
     mousemove: (e) => {
       if (startPoint && isDrawing && drawingEnabled) {
@@ -73,9 +79,9 @@ const DrawRectangle: React.FC<{
         setEndPoint(null);
         setIsDrawing(false);
 
-        // Re-enable map interactions
-        map.dragging.enable();
-        map.doubleClickZoom.enable();
+        // Re-enable map interactions (with defensive null checks)
+        if (map && map.dragging) map.dragging.enable();
+        if (map && map.doubleClickZoom) map.doubleClickZoom.enable();
       }
     },
     // Handle cases where mouse leaves the map area
@@ -85,8 +91,8 @@ const DrawRectangle: React.FC<{
         setStartPoint(null);
         setEndPoint(null);
         setIsDrawing(false);
-        map.dragging.enable();
-        map.doubleClickZoom.enable();
+        if (map && map.dragging) map.dragging.enable();
+        if (map && map.doubleClickZoom) map.doubleClickZoom.enable();
       }
     }
   });
@@ -102,6 +108,17 @@ const DrawRectangle: React.FC<{
       }
     }
   }, [map, drawingEnabled]);
+
+  // Cleanup on unmount to prevent RAF callbacks from executing after unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      // Cancel any pending RAF callbacks
+      if (throttledSetEndPoint.cancel) {
+        throttledSetEndPoint.cancel();
+      }
+    };
+  }, [throttledSetEndPoint]);
 
   if (startPoint && endPoint && isDrawing) {
     const bounds = new LatLngBounds(startPoint, endPoint);

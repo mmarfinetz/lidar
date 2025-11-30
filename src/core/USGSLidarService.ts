@@ -1,9 +1,18 @@
 /**
  * USGS LiDAR Service
  * Real integration with USGS National Map API for high-resolution LiDAR
+ *
+ * Integrates with:
+ * - USGS 3DEP (3D Elevation Program) - 1m DEM nationwide
+ * - National Map TNM API for product discovery
+ * - LiDAR point clouds (LAZ format)
+ *
+ * @see https://www.usgs.gov/3d-elevation-program
+ * @see https://apps.nationalmap.gov/downloader/
  */
 
 import type { BoundingBox } from './ElevationAPI';
+import { USGS3DEPService, type USGS3DEPAvailability } from './USGS3DEPService';
 
 export interface USGSProduct {
   title: string;
@@ -299,5 +308,88 @@ export class USGSLidarService {
       console.error('Error fetching USGS 3DEP data:', error);
       return null;
     }
+  }
+
+  /**
+   * Enhanced 3DEP availability check using new service
+   */
+  static async check3DEPAvailability(bbox: BoundingBox): Promise<USGS3DEPAvailability> {
+    return USGS3DEPService.checkAvailability(bbox);
+  }
+
+  /**
+   * Fetch 3DEP elevation data using the enhanced service
+   * Returns PointCloudData instead of raw ArrayBuffer
+   */
+  static async fetch3DEPData(
+    bbox: BoundingBox,
+    options: {
+      resolution?: number;
+      maxPoints?: number;
+    } = {},
+    onProgress?: (progress: number, status: string) => void
+  ) {
+    return USGS3DEPService.fetchElevation(bbox, options, onProgress);
+  }
+
+  /**
+   * Get quality level description
+   */
+  static getQualityLevelDescription(level: 'QL0' | 'QL1' | 'QL2' | 'unknown'): {
+    name: string;
+    pointDensity: string;
+    accuracy: string;
+    description: string;
+  } {
+    switch (level) {
+      case 'QL0':
+        return {
+          name: 'Quality Level 0 (Highest)',
+          pointDensity: '≥35 points/m²',
+          accuracy: '5 cm vertical',
+          description: 'Ultra-high density LiDAR for detailed feature extraction'
+        };
+      case 'QL1':
+        return {
+          name: 'Quality Level 1',
+          pointDensity: '≥8 points/m²',
+          accuracy: '10 cm vertical',
+          description: 'High density LiDAR suitable for most applications'
+        };
+      case 'QL2':
+        return {
+          name: 'Quality Level 2 (Standard)',
+          pointDensity: '≥2 points/m²',
+          accuracy: '10 cm vertical',
+          description: 'Standard 3DEP quality, nationwide coverage goal'
+        };
+      default:
+        return {
+          name: 'Unknown Quality',
+          pointDensity: 'varies',
+          accuracy: 'varies',
+          description: 'Quality level not determined'
+        };
+    }
+  }
+
+  /**
+   * Get links to USGS tools for manual download
+   */
+  static getUSGSLinks(bbox: BoundingBox): {
+    nationalMapDownloader: string;
+    lidarExplorer: string;
+    earthExplorer: string;
+  } {
+    const center = {
+      lat: (bbox.north + bbox.south) / 2,
+      lon: (bbox.east + bbox.west) / 2
+    };
+
+    return {
+      nationalMapDownloader: `https://apps.nationalmap.gov/downloader/#/product?datasets=Digital%20Elevation%20Model%20(DEM)%201%20meter&bbox=${bbox.west},${bbox.south},${bbox.east},${bbox.north}`,
+      lidarExplorer: `https://apps.nationalmap.gov/lidar-explorer/#/?lat=${center.lat}&lon=${center.lon}&zoom=14`,
+      earthExplorer: `https://earthexplorer.usgs.gov/`
+    };
   }
 }

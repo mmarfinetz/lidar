@@ -5,7 +5,8 @@ import type { BoundingBox } from '../core/ElevationAPI';
 import { ElevationAPI } from '../core/ElevationAPI';
 import { DataAvailabilityService, type AvailabilityResult } from '../core/DataAvailabilityService';
 import { HighResolutionGuide } from './HighResolutionGuide';
-import { MapPin, Download, Info, Square, Hand, Zap, AlertTriangle, Target } from 'lucide-react';
+import { SmallAreaAnalysis } from './SmallAreaAnalysis';
+import { MapPin, Download, Info, Square, Hand, Zap, AlertTriangle, Target, ZoomIn } from 'lucide-react';
 import { rafThrottle } from '../utils/performance';
 
 interface MapSelectorProps {
@@ -54,18 +55,18 @@ const DrawRectangle: React.FC<{
         const bounds = new LatLngBounds(startPoint, e.latlng);
 
         // Only update bounds if the selection has a minimum size (prevents accidental clicks)
-        // Minimum area is 0.001 deg² to match API validation (~111m x 111m)
+        // Minimum area is 0.000001 deg² for detailed small-area analysis (~11m x 11m)
         const latDiff = Math.abs(bounds.getNorth() - bounds.getSouth());
         const lonDiff = Math.abs(bounds.getEast() - bounds.getWest());
         const area = latDiff * lonDiff;
 
-        console.log('Selection size:', { latDiff, lonDiff, area, minArea: 0.001 });
+        console.log('Selection size:', { latDiff, lonDiff, area, minArea: 0.000001 });
 
-        if (area >= 0.001) {
+        if (area >= 0.000001) {
           console.log('Selection accepted, calling onBoundsChange');
           onBoundsChange(bounds);
         } else {
-          console.log('Selection too small, ignored. Minimum area: 0.001 deg²');
+          console.log('Selection too small, ignored. Minimum area: 0.000001 deg²');
         }
 
         // Clean up state
@@ -120,6 +121,7 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
   const [dataAvailability, setDataAvailability] = useState<AvailabilityResult | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [showHighResGuide, setShowHighResGuide] = useState(false);
+  const [showSmallAreaAnalysis, setShowSmallAreaAnalysis] = useState(false);
   const apiKeyPresent = Boolean((import.meta as any).env?.VITE_OPENTOPO_API_KEY);
 
   // Debug: Log when selectedBounds changes
@@ -225,6 +227,25 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
   const handleCloseHighResGuide = useCallback(() => {
     setShowHighResGuide(false);
   }, []);
+
+  const handleShowSmallAreaAnalysis = useCallback(() => {
+    setShowSmallAreaAnalysis(true);
+  }, []);
+
+  const handleCloseSmallAreaAnalysis = useCallback(() => {
+    setShowSmallAreaAnalysis(false);
+  }, []);
+
+  const handleSmallAreaAnalyze = useCallback((bbox: BoundingBox) => {
+    onRegionSelect(bbox, selectedDataset);
+  }, [onRegionSelect, selectedDataset]);
+
+  // Check if this is a small area suitable for detailed analysis
+  const isSmallArea = selectedBounds ? (() => {
+    const latDiff = Math.abs(selectedBounds.getNorth() - selectedBounds.getSouth());
+    const lonDiff = Math.abs(selectedBounds.getEast() - selectedBounds.getWest());
+    return (latDiff * lonDiff) < 0.01; // < ~1km x 1km
+  })() : false;
 
   // Add keyboard shortcuts
   useEffect(() => {
@@ -440,6 +461,17 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
                 )}
 
                 <div className="space-y-2">
+                  {/* Small Area Analysis Option - Show when area is small enough */}
+                  {selectedBounds && isSmallArea && (
+                    <button
+                      onClick={handleShowSmallAreaAnalysis}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-medium text-sm transition-all"
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                      Small Area Analysis (Higher Detail)
+                    </button>
+                  )}
+
                   {/* High-Resolution Processing Option */}
                   {selectedBounds && (dataAvailability?.canRevealArchaeology || dataAvailability?.expectedQuality === 'high') && (
                     <button
@@ -485,9 +517,17 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
                   {/* Information about resolution options */}
                   {selectedBounds && dataAvailability && (
                     <div className="text-xs text-gray-400 text-center">
-                      {dataAvailability.canRevealArchaeology || dataAvailability.expectedQuality === 'high' ? (
+                      {dataAvailability.bestSource.id === 'aws_terrain_tiles' ? (
+                        <>
+                          <span className="text-cyan-400">🗺️ AWS Terrain Tiles</span> - Higher resolution for small areas
+                        </>
+                      ) : dataAvailability.canRevealArchaeology || dataAvailability.expectedQuality === 'high' ? (
                         <>
                           <span className="text-green-400">🎯 High-res processing</span> reveals structures beneath vegetation
+                        </>
+                      ) : isSmallArea ? (
+                        <>
+                          <span className="text-blue-400">💡 Tip:</span> Small area selected - higher detail available via AWS Tiles
                         </>
                       ) : (
                         <>Quick scan uses available global data ({dataAvailability.bestSource.resolution})</>
@@ -506,8 +546,8 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
         <div className="flex items-center gap-2 text-xs text-gray-400">
           <Info className="w-3 h-3" />
           <span>
-            Powered by <span className="text-gray-300">OpenTopography</span> • 
-            Select areas up to ~100km × 100km for best results
+            Powered by <span className="text-gray-300">OpenTopography</span> + <span className="text-gray-300">AWS Terrain Tiles</span> •
+            Select small areas (&lt;1km²) for detailed structure analysis
           </span>
         </div>
       </div>
@@ -522,6 +562,20 @@ export const MapSelector: React.FC<MapSelectorProps> = ({ onRegionSelect, loadin
             east: selectedBounds.getEast()
           }}
           onClose={handleCloseHighResGuide}
+        />
+      )}
+
+      {/* Small Area Analysis Modal */}
+      {showSmallAreaAnalysis && selectedBounds && (
+        <SmallAreaAnalysis
+          bbox={{
+            south: selectedBounds.getSouth(),
+            north: selectedBounds.getNorth(),
+            west: selectedBounds.getWest(),
+            east: selectedBounds.getEast()
+          }}
+          onClose={handleCloseSmallAreaAnalysis}
+          onAnalyze={handleSmallAreaAnalyze}
         />
       )}
     </div>

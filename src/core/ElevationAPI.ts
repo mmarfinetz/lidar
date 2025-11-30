@@ -370,11 +370,11 @@ export class ElevationAPI {
       };
     }
 
-    if (area < 0.001) {
-      // Min ~0.001 degree square (~100m x 100m)
+    if (area < 0.000001) {
+      // Min ~0.000001 degree square (~11m x 11m for very detailed analysis)
       return {
         valid: false,
-        error: 'Selected area too small. Please select a larger region',
+        error: 'Selected area too small. Please select a larger region (minimum ~10m x 10m)',
       };
     }
 

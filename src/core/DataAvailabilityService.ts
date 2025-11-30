@@ -7,6 +7,8 @@ import type { BoundingBox } from './ElevationAPI';
 import { ElevationAPI } from './ElevationAPI';
 import { USGSLidarService } from './USGSLidarService';
 import { ArchaeologicalDatabaseService } from './ArchaeologicalDatabaseService';
+import { TerrainTilesService } from './TerrainTilesService';
+import { metersPerDegree } from '../utils/geo';
 
 export interface DataSource {
   id: string;
@@ -116,7 +118,7 @@ export class DataAvailabilityService {
     // Tier 4: OpenTopography High-Res Collections (various locations)
     {
       id: 'opentopo_highres',
-      name: 'OpenTopography High-Res Collections', 
+      name: 'OpenTopography High-Res Collections',
       resolution: '1-5m',
       pointDensity: '1-5 points/m²',
       coverage: 'local',
@@ -138,15 +140,40 @@ export class DataAvailabilityService {
       }
     },
 
-    // Tier 5: Global DEMs (always available, low resolution)
+    // Tier 5: AWS Terrain Tiles (global, medium resolution ~5-15m for small areas)
+    {
+      id: 'aws_terrain_tiles',
+      name: 'AWS Terrain Tiles (High-Res)',
+      resolution: '5-15m',
+      pointDensity: '~0.01-0.04 points/m²',
+      coverage: 'global',
+      quality: 'medium',
+      priority: 5,
+      checkAvailability: async (bbox) => {
+        // Only use for small areas (< 0.01 deg² = ~1km x 1km)
+        const area = (bbox.north - bbox.south) * (bbox.east - bbox.west);
+        const isSmallArea = area < 0.01;
+        if (!isSmallArea) return false;
+        return TerrainTilesService.checkAvailability(bbox, 'aws');
+      },
+      estimatePoints: (bbox) => {
+        const area = (bbox.north - bbox.south) * (bbox.east - bbox.west);
+        const centerLat = (bbox.north + bbox.south) / 2;
+        const areaM2 = area * metersPerDegree(centerLat).lat * metersPerDegree(centerLat).lon;
+        // At zoom 15, approximately 1 point per 25m² (5m resolution)
+        return Math.floor(areaM2 / 25);
+      }
+    },
+
+    // Tier 6: Global DEMs (always available, low resolution)
     {
       id: 'global_dem',
       name: 'Global DEM (SRTM/ALOS)',
-      resolution: '30-90m', 
+      resolution: '30-90m',
       pointDensity: '~0.0001 points/m²',
       coverage: 'global',
       quality: 'low',
-      priority: 5,
+      priority: 6,
       checkAvailability: async () => true, // Always available
       estimatePoints: (bbox) => {
         const area = (bbox.north - bbox.south) * (bbox.east - bbox.west);

@@ -9,6 +9,7 @@ import type { PointCloudData } from '../types/lidar';
 import { DataAvailabilityService } from './DataAvailabilityService';
 import { USGSLidarService } from './USGSLidarService';
 import { GeoTIFFConverter } from '../utils/GeoTIFFConverter';
+import { TerrainTilesService } from './TerrainTilesService';
 
 export interface FetchResult {
   data: PointCloudData;
@@ -61,6 +62,9 @@ export class HighResolutionFetcher {
           console.log('📊 OpenTopography high-res collections require manual download');
           onProgress?.(100, 'High-res collections require manual download');
           return null;
+
+        case 'aws_terrain_tiles':
+          return await this.fetchAWSTerrainTiles(bbox, onProgress);
 
         case 'global_dem':
           // Fall back to standard global DEM
@@ -137,6 +141,56 @@ export class HighResolutionFetcher {
   }
 
   /**
+   * Fetch AWS Terrain Tiles data for small areas
+   */
+  private static async fetchAWSTerrainTiles(
+    bbox: BoundingBox,
+    onProgress?: (progress: number, status: string) => void
+  ): Promise<FetchResult | null> {
+    const startTime = Date.now();
+
+    try {
+      onProgress?.(10, 'Fetching AWS Terrain Tiles...');
+
+      const resInfo = TerrainTilesService.estimateResolution(bbox);
+      console.log(`📊 AWS Terrain Tiles: zoom ${resInfo.zoomLevel}, ${resInfo.resolution}`);
+
+      const pointCloud = await TerrainTilesService.fetchTerrainData(
+        bbox,
+        'aws',
+        (progress, status) => {
+          const scaledProgress = 10 + (progress / 100) * 90;
+          onProgress?.(scaledProgress, status);
+        }
+      );
+
+      if (!pointCloud) {
+        console.log('AWS Terrain Tiles fetch returned null');
+        return null;
+      }
+
+      const fetchTime = Date.now() - startTime;
+
+      console.log(`✅ Successfully fetched AWS Terrain Tiles in ${(fetchTime / 1000).toFixed(1)}s`);
+
+      return {
+        data: pointCloud,
+        source: {
+          id: 'aws_terrain_tiles',
+          name: 'AWS Terrain Tiles',
+          resolution: resInfo.resolution
+        },
+        fetchTime
+      };
+
+    } catch (error) {
+      console.error('Error fetching AWS Terrain Tiles:', error);
+      onProgress?.(100, 'AWS fetch failed');
+      return null;
+    }
+  }
+
+  /**
    * Get user-friendly message about why high-res data isn't available
    */
   static async getAvailabilityMessage(bbox: BoundingBox): Promise<string> {
@@ -160,6 +214,9 @@ export class HighResolutionFetcher {
       case 'opentopo_highres':
         return '📊 OpenTopography high-res available (1-5m) - Manual download required';
 
+      case 'aws_terrain_tiles':
+        return '🗺️ AWS Terrain Tiles available (5-15m) - Automatic high-res fetch for small areas';
+
       default:
         return `📊 ${source.name} (${source.resolution}) detected`;
     }
@@ -171,7 +228,8 @@ export class HighResolutionFetcher {
   static async hasAutoFetchableData(bbox: BoundingBox): Promise<boolean> {
     const availability = await DataAvailabilityService.checkAvailability(bbox);
 
-    // Currently only USGS 3DEP can be auto-fetched
-    return availability.bestSource.id === 'usgs_3dep_lidar';
+    // USGS 3DEP and AWS Terrain Tiles can be auto-fetched
+    return availability.bestSource.id === 'usgs_3dep_lidar' ||
+           availability.bestSource.id === 'aws_terrain_tiles';
   }
 }

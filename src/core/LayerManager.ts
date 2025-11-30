@@ -88,7 +88,8 @@ export class LayerManager {
       : data.points.filter(p => !p.classification || p.classification !== PointClassification.Ground);
 
     if (surfacePoints.length === 0) {
-      console.warn('No surface points found');
+      // This is expected for DEM/terrain tile data which only has ground elevation
+      console.log('Surface layer skipped: no vegetation/surface points in data');
       return;
     }
 

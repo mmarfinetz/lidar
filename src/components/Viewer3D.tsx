@@ -170,29 +170,6 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     const axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
 
-    // Add a test cube to ensure the scene is working (will be removed when data loads)
-    const testGeometry = new THREE.BoxGeometry(4, 4, 4);
-    const testMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x00ff00, 
-      wireframe: false,
-      transparent: true,
-      opacity: 0.7 
-    });
-    const testCube = new THREE.Mesh(testGeometry, testMaterial);
-    testCube.position.set(0, 0, 2);
-    testCube.name = 'testCube';
-    scene.add(testCube);
-    
-    // Add rotation animation to the test cube
-    const animateTestCube = () => {
-      if (testCube.parent) { // Only animate if still in scene
-        testCube.rotation.x += 0.01;
-        testCube.rotation.y += 0.01;
-      }
-    };
-    
-    console.log('Added animated test cube to scene');
-
     // Raycaster for coordinate detection
     const raycaster = new THREE.Raycaster();
     raycasterRef.current = raycaster;
@@ -321,9 +298,6 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
       controls.update();
-
-      // Animate test cube
-      animateTestCube();
 
       // Only update LOD when camera position/rotation changes significantly
       if (layerManagerRef.current) {
@@ -486,13 +460,6 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ data, onReady, showGrid = tr
     if (!data || !layerManagerRef.current || !sceneRef.current) return;
 
     console.log('Loading point cloud data:', data.count, 'points');
-
-    // Remove test cube if it exists
-    const testCube = sceneRef.current.getObjectByName('testCube');
-    if (testCube) {
-      sceneRef.current.remove(testCube);
-      console.log('Removed test cube');
-    }
 
     // Clear existing layers
     layerManagerRef.current.clearAll();

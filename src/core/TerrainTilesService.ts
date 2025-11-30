@@ -57,30 +57,20 @@ export class TerrainTilesService {
 
   /**
    * Calculate optimal zoom level for a bounding box
+   * Uses ground resolution formula: resolution = 156543.03392 * cos(lat) / 2^zoom
    */
   static calculateOptimalZoom(bbox: BoundingBox, targetResolutionMeters: number = 10): number {
-    const latDiff = bbox.north - bbox.south;
-    const lonDiff = bbox.east - bbox.west;
     const centerLat = (bbox.north + bbox.south) / 2;
+    const cosLat = Math.cos(centerLat * Math.PI / 180);
 
-    // Width in meters at the center latitude
-    const widthMeters = lonDiff * metersPerDegree(centerLat).lon;
-    const heightMeters = latDiff * metersPerDegree(centerLat).lat;
-    const regionSize = Math.max(widthMeters, heightMeters);
+    // Ground resolution formula: 156543.03392 * cos(lat) / 2^zoom = targetResolution
+    // Solving for zoom: 2^zoom = 156543.03392 * cos(lat) / targetResolution
+    // zoom = log2(156543.03392 * cos(lat) / targetResolution)
+    const zoom = Math.ceil(Math.log2(156543.03392 * cosLat / targetResolutionMeters));
 
-    // At zoom level z, each pixel covers approximately:
-    // groundResolution = 156543.03392 * cos(lat) / (2^z)
-    // For 256px tiles, tile width in meters = 256 * groundResolution
-
-    // We want enough pixels to match our target resolution
-    const pixelsNeeded = regionSize / targetResolutionMeters;
-
-    // Calculate zoom to get approximately the right number of pixels
-    // Each zoom level doubles the resolution
-    let zoom = Math.ceil(Math.log2(pixelsNeeded / 256));
-
-    // Clamp to reasonable values
-    return Math.max(8, Math.min(15, zoom));
+    // Clamp to reasonable values - allow up to zoom 15 for highest detail
+    // Minimum of 10 ensures reasonable detail even for large areas
+    return Math.max(10, Math.min(15, zoom));
   }
 
   /**
@@ -208,17 +198,18 @@ export class TerrainTilesService {
     onProgress?.(5, `Calculating optimal resolution...`);
 
     // Calculate optimal zoom for small areas (target ~5m resolution for detailed analysis)
-    const zoom = this.calculateOptimalZoom(bbox, 5);
-    const tiles = this.getTilesForBBox(bbox, zoom);
+    let zoom = this.calculateOptimalZoom(bbox, 5);
+    let tiles = this.getTilesForBBox(bbox, zoom);
+
+    // Reduce zoom level if too many tiles (max 25 tiles = 5x5 grid)
+    while (tiles.length > 25 && zoom > 10) {
+      zoom--;
+      tiles = this.getTilesForBBox(bbox, zoom);
+      console.log(`Reduced zoom to ${zoom}, now ${tiles.length} tiles`);
+    }
 
     console.log(`Fetching ${tiles.length} tiles at zoom ${zoom} from ${source.name}`);
     onProgress?.(10, `Fetching ${tiles.length} terrain tiles at zoom ${zoom}...`);
-
-    // Limit tiles for performance (max 16 tiles = 4x4 grid)
-    if (tiles.length > 16) {
-      console.warn(`Too many tiles (${tiles.length}), reducing zoom level`);
-      return this.fetchTerrainData(bbox, sourceId, onProgress);
-    }
 
     // Fetch all tiles in parallel
     const tilePromises = tiles.map(async (tile, index) => {
@@ -231,18 +222,31 @@ export class TerrainTilesService {
 
     onProgress?.(70, 'Processing elevation data...');
 
-    // Collect all points from all tiles
-    const points: LiDARPoint[] = [];
-    const positionsMeters: number[] = [];
-
     const centerLat = (bbox.north + bbox.south) / 2;
     const centerLon = (bbox.east + bbox.west) / 2;
     const mPerDeg = metersPerDegree(centerLat);
 
+    // Calculate grid dimensions based on target resolution
+    const targetResolution = 5; // meters per cell
+    const widthMeters = (bbox.east - bbox.west) * mPerDeg.lon;
+    const heightMeters = (bbox.north - bbox.south) * mPerDeg.lat;
+    const ncols = Math.max(10, Math.min(512, Math.ceil(widthMeters / targetResolution)));
+    const nrows = Math.max(10, Math.min(512, Math.ceil(heightMeters / targetResolution)));
+
+    // Create height grid (row-major, row 0 = north)
+    const heightGrid = new Float32Array(ncols * nrows);
+    heightGrid.fill(NaN);
+
+    // Cell size in degrees
+    const cellWidth = (bbox.east - bbox.west) / ncols;
+    const cellHeight = (bbox.north - bbox.south) / nrows;
+
     // Track min/max elevation for normalization
     let minElevation = Infinity;
     let maxElevation = -Infinity;
+    let validCells = 0;
 
+    // Process all tiles and fill the grid
     for (const { tile, imageData } of tileResults) {
       if (!imageData) continue;
 
@@ -250,11 +254,8 @@ export class TerrainTilesService {
       const latStep = (tileBBox.north - tileBBox.south) / source.tileSize;
       const lonStep = (tileBBox.east - tileBBox.west) / source.tileSize;
 
-      // Sample every Nth pixel for performance (adjust based on zoom)
-      const sampleRate = zoom >= 14 ? 2 : 1;
-
-      for (let py = 0; py < source.tileSize; py += sampleRate) {
-        for (let px = 0; px < source.tileSize; px += sampleRate) {
+      for (let py = 0; py < source.tileSize; py++) {
+        for (let px = 0; px < source.tileSize; px++) {
           const idx = (py * source.tileSize + px) * 4;
           const r = imageData.data[idx];
           const g = imageData.data[idx + 1];
@@ -280,8 +281,75 @@ export class TerrainTilesService {
           // Only include points within the requested bbox
           if (lat < bbox.south || lat > bbox.north || lon < bbox.west || lon > bbox.east) continue;
 
-          minElevation = Math.min(minElevation, elevation);
-          maxElevation = Math.max(maxElevation, elevation);
+          // Map to grid cell
+          const col = Math.floor((lon - bbox.west) / cellWidth);
+          const row = Math.floor((bbox.north - lat) / cellHeight); // row 0 = north
+
+          if (col >= 0 && col < ncols && row >= 0 && row < nrows) {
+            const gridIdx = row * ncols + col;
+            if (isNaN(heightGrid[gridIdx])) {
+              heightGrid[gridIdx] = elevation;
+              validCells++;
+            } else {
+              // Average with existing value if multiple samples hit same cell
+              heightGrid[gridIdx] = (heightGrid[gridIdx] + elevation) / 2;
+            }
+            minElevation = Math.min(minElevation, elevation);
+            maxElevation = Math.max(maxElevation, elevation);
+          }
+        }
+      }
+    }
+
+    if (validCells === 0) {
+      console.warn('No valid elevation data found');
+      return null;
+    }
+
+    // Fill gaps with nearest neighbor interpolation
+    for (let row = 0; row < nrows; row++) {
+      for (let col = 0; col < ncols; col++) {
+        const idx = row * ncols + col;
+        if (isNaN(heightGrid[idx])) {
+          // Find nearest valid cell
+          let nearestVal = (minElevation + maxElevation) / 2;
+          let minDist = Infinity;
+          const searchRadius = Math.max(ncols, nrows);
+          for (let dr = -searchRadius; dr <= searchRadius; dr++) {
+            for (let dc = -searchRadius; dc <= searchRadius; dc++) {
+              const nr = row + dr;
+              const nc = col + dc;
+              if (nr >= 0 && nr < nrows && nc >= 0 && nc < ncols) {
+                const nIdx = nr * ncols + nc;
+                if (!isNaN(heightGrid[nIdx])) {
+                  const dist = Math.sqrt(dr * dr + dc * dc);
+                  if (dist < minDist) {
+                    minDist = dist;
+                    nearestVal = heightGrid[nIdx];
+                  }
+                }
+              }
+            }
+          }
+          heightGrid[idx] = nearestVal;
+        }
+      }
+    }
+
+    onProgress?.(85, `Processing ${validCells.toLocaleString()} elevation samples...`);
+
+    // Build points array from grid (for compatibility with point-based rendering)
+    const points: LiDARPoint[] = [];
+    const positionsMeters: number[] = [];
+    const elevationBase = minElevation;
+
+    for (let row = 0; row < nrows; row++) {
+      for (let col = 0; col < ncols; col++) {
+        const idx = row * ncols + col;
+        const elevation = heightGrid[idx];
+        if (!isNaN(elevation)) {
+          const lon = bbox.west + (col + 0.5) * cellWidth;
+          const lat = bbox.north - (row + 0.5) * cellHeight;
 
           points.push({
             x: lon,
@@ -291,20 +359,12 @@ export class TerrainTilesService {
             intensity: Math.abs(elevation) * 10
           });
 
-          // Store meter positions
           const east = (lon - centerLon) * mPerDeg.lon;
           const north = (lat - centerLat) * mPerDeg.lat;
-          positionsMeters.push(east, elevation, north);
+          positionsMeters.push(east, elevation - elevationBase, north);
         }
       }
     }
-
-    if (points.length === 0) {
-      console.warn('No valid elevation data found');
-      return null;
-    }
-
-    onProgress?.(85, `Processing ${points.length.toLocaleString()} points...`);
 
     // Normalize coordinates to unit space
     const rangeEastMeters = (bbox.east - bbox.west) * mPerDeg.lon;
@@ -313,7 +373,11 @@ export class TerrainTilesService {
     const maxRangeMeters = Math.max(rangeEastMeters, rangeNorthMeters, rangeUpMeters || 1);
     const scale = 10 / (maxRangeMeters || 1);
 
-    const elevationBase = minElevation;
+    // Calculate grid cell sizes in meters
+    const dxMeters = cellWidth * mPerDeg.lon;
+    const dyMeters = cellHeight * mPerDeg.lat;
+
+    // Normalize points
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
       const east = (p.x - centerLon) * mPerDeg.lon;
@@ -325,16 +389,11 @@ export class TerrainTilesService {
       p.z = up * scale;
     }
 
-    // Update meter positions for normalized elevations
-    for (let i = 1; i < positionsMeters.length; i += 3) {
-      positionsMeters[i] = positionsMeters[i] - elevationBase;
-    }
-
     const normalizedBounds = calculateBounds(points);
 
     onProgress?.(100, `Loaded ${points.length.toLocaleString()} points from ${source.name}`);
 
-    console.log(`✅ Loaded ${points.length} points from ${source.name} at zoom ${zoom}`);
+    console.log(`✅ Loaded ${points.length} points (${ncols}x${nrows} grid) from ${source.name} at zoom ${zoom}`);
 
     return {
       points,
@@ -347,7 +406,15 @@ export class TerrainTilesService {
         center: { lat: centerLat, lon: centerLon },
         metersPerDegree: mPerDeg,
         elevationBase,
-        positionsMeters: new Float32Array(positionsMeters)
+        positionsMeters: new Float32Array(positionsMeters),
+        grid: {
+          ncols,
+          nrows,
+          dxMeters,
+          dyMeters,
+          scale,
+        },
+        heightGrid,
       }
     };
   }

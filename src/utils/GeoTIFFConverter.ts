@@ -94,8 +94,8 @@ export class GeoTIFFConverter {
 
           points.push({
             x: lon,
-            y: elevation,
-            z: lat,
+            y: lat,
+            z: elevation,
             intensity: 128,
             classification: 2,
             r: 150,
@@ -122,11 +122,11 @@ export class GeoTIFFConverter {
 
       for (const point of points) {
         const dLon = point.x - centerLon;
-        const dLat = point.z - centerLat;
+        const dLat = point.y - centerLat;
 
         const east_m = dLon * mPerDeg.lon;
         const north_m = dLat * mPerDeg.lat;
-        const up_m = point.y;
+        const up_m = point.z;
 
         positionsMeters.push(east_m, up_m, north_m);
       }

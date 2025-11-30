@@ -2,12 +2,19 @@
  * High Resolution Fetcher
  * Orchestrates fetching high-resolution elevation data from multiple sources
  * Prioritizes sources based on DataAvailabilityService
+ *
+ * Supports:
+ * - USGS 3DEP (1m resolution via EPQS, WCS, or direct download)
+ * - AWS Terrain Tiles (5-15m for small areas)
+ * - OpenTopography collections
+ * - European national LiDAR programs
  */
 
 import type { BoundingBox } from './ElevationAPI';
 import type { PointCloudData } from '../types/lidar';
 import { DataAvailabilityService } from './DataAvailabilityService';
 import { USGSLidarService } from './USGSLidarService';
+import { USGS3DEPService } from './USGS3DEPService';
 import { GeoTIFFConverter } from '../utils/GeoTIFFConverter';
 import { TerrainTilesService } from './TerrainTilesService';
 
@@ -83,7 +90,8 @@ export class HighResolutionFetcher {
   }
 
   /**
-   * Fetch USGS 3DEP data
+   * Fetch USGS 3DEP data using the enhanced service
+   * Automatically selects the best method (EPQS, WCS, or direct download)
    */
   private static async fetchUSGS3DEP(
     bbox: BoundingBox,
@@ -93,11 +101,47 @@ export class HighResolutionFetcher {
     const startTime = Date.now();
 
     try {
-      onProgress?.(10, 'Fetching USGS 3DEP data...');
+      onProgress?.(5, 'Checking USGS 3DEP availability...');
+
+      // First try the new USGS3DEPService which handles proxy and fallbacks
+      const result = await USGS3DEPService.fetchElevation(
+        bbox,
+        {
+          resolution: 10, // Default 10m, service will optimize based on area
+          maxPoints: 500000
+        },
+        (progress, status) => {
+          // Scale progress from 5-95%
+          const scaledProgress = 5 + (progress / 100) * 90;
+          onProgress?.(scaledProgress, status);
+        }
+      );
+
+      if (result) {
+        const fetchTime = Date.now() - startTime;
+
+        console.log(`✅ Successfully fetched USGS 3DEP data via ${result.source.method} in ${(fetchTime / 1000).toFixed(1)}s`);
+        console.log(`   Resolution: ${result.source.resolution}, Coverage: ${result.coverage.percentComplete.toFixed(1)}%`);
+
+        onProgress?.(100, 'USGS 3DEP data loaded successfully');
+
+        return {
+          data: result.data,
+          source: {
+            id: 'usgs_3dep_lidar',
+            name: result.source.name,
+            resolution: result.source.resolution
+          },
+          fetchTime
+        };
+      }
+
+      // Fall back to legacy method (direct GeoTIFF download)
+      console.log('New USGS service returned null, trying legacy method...');
+      onProgress?.(50, 'Trying legacy USGS fetch method...');
 
       const arrayBuffer = await USGSLidarService.fetch3DEPElevation(bbox, (progress, status) => {
-        // Scale progress from 10-70%
-        const scaledProgress = 10 + (progress / 100) * 60;
+        const scaledProgress = 50 + (progress / 100) * 30;
         onProgress?.(scaledProgress, status);
       });
 
@@ -106,22 +150,21 @@ export class HighResolutionFetcher {
         return null;
       }
 
-      onProgress?.(70, 'Converting USGS GeoTIFF to point cloud...');
+      onProgress?.(80, 'Converting USGS GeoTIFF to point cloud...');
 
       // Convert GeoTIFF to point cloud
       const pointCloud = await GeoTIFFConverter.convertToPointCloud(
         arrayBuffer,
         bbox,
         (progress, status) => {
-          // Scale progress from 70-100%
-          const scaledProgress = 70 + (progress / 100) * 30;
+          const scaledProgress = 80 + (progress / 100) * 20;
           onProgress?.(scaledProgress, status);
         }
       );
 
       const fetchTime = Date.now() - startTime;
 
-      console.log(`✅ Successfully fetched USGS 3DEP data in ${(fetchTime / 1000).toFixed(1)}s`);
+      console.log(`✅ Successfully fetched USGS 3DEP data (legacy) in ${(fetchTime / 1000).toFixed(1)}s`);
 
       return {
         data: pointCloud,
